@@ -131,7 +131,7 @@ export const KanbanBoard = () => {
                 </div>
                 <button
                   onClick={logout}
-                  className="ml-4 rounded-lg bg-purple-secondary px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
+                  className="ml-4 rounded-lg bg-[#753991] px-4 py-2 text-sm font-medium text-white hover:bg-[#5a2a6d] transition-colors"
                 >
                   Sign Out
                 </button>

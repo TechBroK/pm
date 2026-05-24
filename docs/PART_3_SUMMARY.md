@@ -1,6 +1,7 @@
 # Part 3 Summary: Frontend Build & Serving Integration
 
 ## Objective
+
 Integrate the built Next.js frontend with the FastAPI backend so the Kanban board displays at `http://127.0.0.1:8000/` and all frontend functionality works without serving from separate ports.
 
 ## Status: ✅ COMPLETE
@@ -8,6 +9,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 ## Implementation Details
 
 ### 1. Frontend Static Export Configuration ✅
+
 - **File**: `frontend/next.config.ts`
 - **Changes**: Added static export configuration
   - `output: "export"` - Enable static export mode
@@ -15,6 +17,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 - **Result**: Next.js builds to static HTML/CSS/JS suitable for embedding in FastAPI
 
 ### 2. Frontend Build ✅
+
 - **Command**: `npm run build` in frontend directory
 - **Result**: Successfully compiled with Turbopack in ~8.3 seconds
 - **Output**: `frontend/dist/` directory containing:
@@ -24,8 +27,9 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
   - Favicon and other static files
 
 ### 3. Backend Serving Configuration ✅
+
 - **File**: `backend/main.py`
-- **Changes**: 
+- **Changes**:
   - Removed complex routing logic
   - Added path resolution to locate `frontend/dist`
   - Mount `/_next` StaticFiles for Next.js assets
@@ -34,8 +38,9 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 - **Result**: Backend properly serves frontend from dist folder with SPA routing support
 
 ### 4. Updated Start Scripts ✅
+
 - **Files**: `scripts/start-backend.bat` and `scripts/start-backend.sh`
-- **Changes**: 
+- **Changes**:
   - Added frontend build step before starting backend
   - Ensures frontend/dist is always up-to-date
   - Simplified backend dependency installation
@@ -44,6 +49,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 ### 5. End-to-End Testing ✅
 
 #### Server Startup
+
 ```
 ✓ Backend started successfully on http://127.0.0.1:8000
 ✓ Frontend mounted from dist directory
@@ -51,6 +57,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 ```
 
 #### UI Rendering
+
 ```
 ✓ Kanban board displays at root URL (/)
 ✓ All 5 columns visible (Backlog/To Do, Discovery, In Progress, Review, Done)
@@ -60,6 +67,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 ```
 
 #### Functionality Verification
+
 ```
 ✓ Column renaming - Successfully renamed "Backlog" to "To Do"
 ✓ Add card - Created new card "Test Card from Backend" in To Do column
@@ -69,6 +77,7 @@ Integrate the built Next.js frontend with the FastAPI backend so the Kanban boar
 ```
 
 #### Browser Integration
+
 ```
 ✓ Page loads from http://127.0.0.1:8000/
 ✓ Static assets load correctly (_next/ bundles)
@@ -114,24 +123,29 @@ FastAPI serves both:
 - [x] SPA routing works for all routes
 
 ## Frontend Test Coverage
+
 - Vitest: 6/6 tests passing (100%)
 - Coverage: 76.65% statements, 78.2% branches
 - No regressions from integration
 
 ## Next Steps
+
 Part 4: User Authentication
+
 - Implement login page
 - Create auth context/state management
 - Add protected routes
 - Persist auth state
 
 ## Files Modified in Part 3
+
 - `frontend/next.config.ts` - Added static export config
 - `backend/main.py` - Updated to serve frontend from dist
 - `scripts/start-backend.bat` - Added frontend build step
 - `scripts/start-backend.sh` - Added frontend build step
 
 ## Verification Commands
+
 ```bash
 # Start the integrated system
 scripts/start-backend.bat  # Windows
@@ -142,6 +156,7 @@ http://127.0.0.1:8000/
 ```
 
 ## Notes
+
 - Frontend state is client-side only (not persisted to backend yet)
 - No database integration yet (Part 5)
 - No user authentication yet (Part 4)
