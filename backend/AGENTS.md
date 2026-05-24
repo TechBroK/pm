@@ -44,17 +44,20 @@ backend/
 ## API Endpoints (Current)
 
 ### GET /
+
 - **Purpose**: Serve static HTML
 - **Response**: HTML page
 - **Status**: ✅ Working
 
 ### GET /api/test
+
 - **Purpose**: Test API connectivity
 - **Response**: `{"message": "Hello from API"}`
 - **Status Code**: 200
 - **Status**: ✅ Working
 
 ### GET /health
+
 - **Purpose**: Health check for monitoring
 - **Response**: `{"status": "ok"}`
 - **Status Code**: 200
@@ -62,22 +65,24 @@ backend/
 
 ## Key Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| FastAPI | 0.104.1 | Web framework |
-| Uvicorn | 0.24.0 | ASGI server |
-| python-multipart | 0.0.6 | Form data parsing |
+| Package          | Version | Purpose           |
+| ---------------- | ------- | ----------------- |
+| FastAPI          | 0.104.1 | Web framework     |
+| Uvicorn          | 0.24.0  | ASGI server       |
+| python-multipart | 0.0.6   | Form data parsing |
 
 ## Running the Backend
 
 ### Option 1: Using Scripts
 
 **Windows:**
+
 ```bash
 .\scripts\start-backend.bat
 ```
 
 **Linux/macOS:**
+
 ```bash
 ./scripts/start-backend.sh
 ```
@@ -97,6 +102,7 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ## Architecture Overview
 
 ### Current Stack
+
 ```
 Request → Uvicorn (ASGI Server)
             ↓
@@ -108,6 +114,7 @@ Request → Uvicorn (ASGI Server)
 ```
 
 ### Future Stack (Parts 3-10)
+
 ```
 Request → Uvicorn
             ↓
@@ -126,14 +133,17 @@ Request → Uvicorn
 ## Code Organization Plan (Future Parts)
 
 ### Part 3: Frontend Integration
+
 - Configure static file serving for built Next.js app
 - Set up route fallback for SPA
 
 ### Part 4: Authentication
+
 - Add `auth.py` module for auth logic
 - Add auth middleware
 
 ### Part 5-6: Database & API
+
 - Add `db.py` module for database operations
 - Add `models.py` for SQLAlchemy/dataclass models
 - Add `api/` directory for route grouping
@@ -142,6 +152,7 @@ Request → Uvicorn
   - `api/chat.py` - Chat endpoints
 
 ### Part 8-10: AI Integration
+
 - Add `ai_service.py` for OpenRouter integration
 - Add structured response handling
 - Add chat history management
@@ -149,12 +160,14 @@ Request → Uvicorn
 ## Testing Strategy (Future)
 
 **Backend Unit Tests** (pytest):
+
 - Database operations
 - API endpoint logic
 - Auth validation
 - AI response parsing
 
 **Integration Tests**:
+
 - Auth flow + board operations
 - API + database interaction
 - Frontend + backend data flow
@@ -164,10 +177,12 @@ Request → Uvicorn
 ## Environment Setup
 
 ### System Requirements
+
 - Python 3.11+
 - pip or uv package manager
 
 ### Installation
+
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -178,6 +193,7 @@ pip install -r requirements.txt
 Current logging level: `INFO`
 
 **Log Output**:
+
 - Server startup/shutdown events
 - HTTP request details
 - Request status codes
@@ -185,6 +201,7 @@ Current logging level: `INFO`
 ## Error Handling (Future)
 
 Planned error handling:
+
 - Database connection failures
 - Authentication errors (401, 403)
 - Validation errors (422)
@@ -196,10 +213,12 @@ All errors returned as JSON with proper HTTP status codes.
 ## Performance Considerations
 
 **Current**:
+
 - Static file serving (optimized by FastAPI)
 - Direct route handling
 
 **Future**:
+
 - Database query optimization (indexes)
 - Connection pooling (SQLite)
 - Caching for AI responses
