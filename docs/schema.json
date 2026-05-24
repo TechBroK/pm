@@ -1,0 +1,212 @@
+{
+  "database": "kanban.db",
+  "version": "1.0",
+  "tables": [
+    {
+      "name": "users",
+      "description": "User account information",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique user identifier"
+        },
+        {
+          "name": "username",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "UNIQUE"],
+          "description": "Login username"
+        },
+        {
+          "name": "password_hash",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "Hashed password"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Account creation time"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "users_username",
+          "columns": ["username"],
+          "type": "UNIQUE"
+        }
+      ]
+    },
+    {
+      "name": "boards",
+      "description": "Kanban boards (one per user for MVP)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique board identifier"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL", "FOREIGN KEY"],
+          "foreignKey": "users(id) ON DELETE CASCADE",
+          "description": "Board owner"
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "DEFAULT 'My Board'"],
+          "description": "Board name"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Board creation time"
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Last modification time"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "boards_user_id",
+          "columns": ["user_id"],
+          "type": "INDEX"
+        }
+      ]
+    },
+    {
+      "name": "columns",
+      "description": "Kanban columns (5 per board, renameable)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique column identifier"
+        },
+        {
+          "name": "board_id",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL", "FOREIGN KEY"],
+          "foreignKey": "boards(id) ON DELETE CASCADE",
+          "description": "Parent board"
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "Column name (e.g., 'Backlog', 'In Progress')"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL"],
+          "description": "Column order (0-4)"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Column creation time"
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Last modification time"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "columns_board_id",
+          "columns": ["board_id"],
+          "type": "INDEX"
+        },
+        {
+          "name": "columns_board_position",
+          "columns": ["board_id", "position"],
+          "type": "UNIQUE"
+        }
+      ]
+    },
+    {
+      "name": "cards",
+      "description": "Kanban cards (tasks/items on columns)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique card identifier"
+        },
+        {
+          "name": "column_id",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL", "FOREIGN KEY"],
+          "foreignKey": "columns(id) ON DELETE CASCADE",
+          "description": "Parent column"
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "Card title"
+        },
+        {
+          "name": "details",
+          "type": "TEXT",
+          "constraints": [],
+          "description": "Card description/notes (optional)"
+        },
+        {
+          "name": "position",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL"],
+          "description": "Card order within column"
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Card creation time"
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "constraints": ["DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Last modification time"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "cards_column_id",
+          "columns": ["column_id"],
+          "type": "INDEX"
+        },
+        {
+          "name": "cards_column_position",
+          "columns": ["column_id", "position"],
+          "type": "UNIQUE"
+        }
+      ]
+    }
+  ],
+  "queries": {
+    "getBoard": "SELECT b.*, COUNT(DISTINCT c.id) as card_count FROM boards b LEFT JOIN columns col ON b.id = col.board_id LEFT JOIN cards c ON col.id = c.column_id WHERE b.user_id = ? AND b.id = ? GROUP BY b.id",
+    "getColumnsWithCards": "SELECT col.*, GROUP_CONCAT(c.id || ':' || c.title || ':' || c.details || ':' || c.position) as cards FROM columns col LEFT JOIN cards c ON col.id = c.column_id WHERE col.board_id = ? GROUP BY col.id ORDER BY col.position",
+    "addCard": "INSERT INTO cards (column_id, title, details, position) VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM cards WHERE column_id = ?))",
+    "moveCard": "UPDATE cards SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    "deleteCard": "DELETE FROM cards WHERE id = ?",
+    "renameColumn": "UPDATE columns SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    "initializeBoard": "INSERT INTO columns (board_id, title, position) VALUES (?, 'Backlog', 0), (?, 'Discovery', 1), (?, 'In Progress', 2), (?, 'Review', 3), (?, 'Done', 4)"
+  }
+}

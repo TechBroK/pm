@@ -1,0 +1,380 @@
+"""Database layer for Kanban app using SQLite."""
+
+import sqlite3
+from pathlib import Path
+from contextlib import contextmanager
+from typing import Optional, List, Dict, Any
+from dataclasses import dataclass
+from datetime import datetime
+
+# Database file location
+DB_DIR = Path(__file__).parent
+DB_PATH = DB_DIR / "kanban.db"
+
+
+@dataclass
+class User:
+    """User model."""
+    id: int
+    username: str
+    password_hash: str
+    created_at: str
+
+
+@dataclass
+class Board:
+    """Board model."""
+    id: int
+    user_id: int
+    title: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class Column:
+    """Column model."""
+    id: int
+    board_id: int
+    title: str
+    position: int
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class Card:
+    """Card model."""
+    id: int
+    column_id: int
+    title: str
+    details: Optional[str]
+    position: int
+    created_at: str
+    updated_at: str
+
+
+class Database:
+    """SQLite database manager for Kanban app."""
+
+    @staticmethod
+    def init() -> None:
+        """Initialize database schema if it doesn't exist."""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Boards table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS boards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL DEFAULT 'My Board',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # Columns table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS columns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                board_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+                UNIQUE(board_id, position)
+            )
+        """)
+
+        # Cards table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                column_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                details TEXT,
+                position INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE,
+                UNIQUE(column_id, position)
+            )
+        """)
+
+        # Create indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_boards_user_id ON boards(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_columns_board_id ON columns(board_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_column_id ON cards(column_id)")
+
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    @contextmanager
+    def get_connection():
+        """Get database connection context manager."""
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row  # Return rows as dicts
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def seed_data() -> None:
+        """Create default demo data (for testing only)."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Check if user already exists
+            cursor.execute("SELECT id FROM users WHERE username = ?", ("user",))
+            user = cursor.fetchone()
+
+            if not user:
+                # Create user
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                    ("user", "password")  # In MVP, password is not hashed
+                )
+                user_id = cursor.lastrowid
+            else:
+                user_id = user[0]
+
+            # Check if board already exists
+            cursor.execute("SELECT id FROM boards WHERE user_id = ?", (user_id,))
+            board = cursor.fetchone()
+
+            if not board:
+                # Create board
+                cursor.execute(
+                    "INSERT INTO boards (user_id, title) VALUES (?, ?)",
+                    (user_id, "My Board")
+                )
+                board_id = cursor.lastrowid
+
+                # Create default columns
+                default_columns = [
+                    ("Backlog", 0),
+                    ("Discovery", 1),
+                    ("In Progress", 2),
+                    ("Review", 3),
+                    ("Done", 4),
+                ]
+
+                for title, position in default_columns:
+                    cursor.execute(
+                        "INSERT INTO columns (board_id, title, position) VALUES (?, ?, ?)",
+                        (board_id, title, position)
+                    )
+
+                # Create sample cards
+                sample_cards = [
+                    (1, "Align roadmap themes", "Draft quarterly themes with impact statements and metrics."),
+                    (1, "Gather customer signals", "Review support tags, sales notes, and churn feedback."),
+                    (2, "Prototype analytics view", "Sketch initial dashboard layout and key drill-downs."),
+                    (3, "Refine status language", "Standardize column labels and tone across the board."),
+                    (3, "Design card layout", "Add hierarchy and spacing for scanning dense lists."),
+                    (4, "QA micro-interactions", "Verify hover, focus, and loading states."),
+                    (5, "Ship marketing page", "Final copy approved and asset pack delivered."),
+                    (5, "Close onboarding sprint", "Document release notes and share internally."),
+                ]
+
+                for col_id, title, details in sample_cards:
+                    cursor.execute(
+                        "SELECT COUNT(*) as count FROM cards WHERE column_id = ?",
+                        (col_id,)
+                    )
+                    position = cursor.fetchone()["count"]
+                    cursor.execute(
+                        "INSERT INTO cards (column_id, title, details, position) VALUES (?, ?, ?, ?)",
+                        (col_id, title, details, position)
+                    )
+
+
+# Database operations
+class DatabaseOps:
+    """Database CRUD operations."""
+
+    @staticmethod
+    def get_user_by_username(username: str) -> Optional[User]:
+        """Get user by username."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+            row = cursor.fetchone()
+            if row:
+                return User(
+                    id=row["id"],
+                    username=row["username"],
+                    password_hash=row["password_hash"],
+                    created_at=row["created_at"]
+                )
+        return None
+
+    @staticmethod
+    def get_board(user_id: int) -> Optional[Dict[str, Any]]:
+        """Get board with all columns and cards for a user."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get board
+            cursor.execute(
+                "SELECT * FROM boards WHERE user_id = ? LIMIT 1",
+                (user_id,)
+            )
+            board_row = cursor.fetchone()
+            if not board_row:
+                return None
+
+            board = {
+                "id": board_row["id"],
+                "user_id": board_row["user_id"],
+                "title": board_row["title"],
+                "created_at": board_row["created_at"],
+                "updated_at": board_row["updated_at"],
+                "columns": []
+            }
+
+            # Get columns with cards
+            cursor.execute(
+                "SELECT * FROM columns WHERE board_id = ? ORDER BY position",
+                (board_row["id"],)
+            )
+            columns = cursor.fetchall()
+
+            for col_row in columns:
+                cursor.execute(
+                    "SELECT * FROM cards WHERE column_id = ? ORDER BY position",
+                    (col_row["id"],)
+                )
+                cards = cursor.fetchall()
+
+                column = {
+                    "id": col_row["id"],
+                    "board_id": col_row["board_id"],
+                    "title": col_row["title"],
+                    "position": col_row["position"],
+                    "created_at": col_row["created_at"],
+                    "updated_at": col_row["updated_at"],
+                    "cards": [
+                        {
+                            "id": card_row["id"],
+                            "column_id": card_row["column_id"],
+                            "title": card_row["title"],
+                            "details": card_row["details"],
+                            "position": card_row["position"],
+                            "created_at": card_row["created_at"],
+                            "updated_at": card_row["updated_at"],
+                        }
+                        for card_row in cards
+                    ]
+                }
+                board["columns"].append(column)
+
+        return board
+
+    @staticmethod
+    def add_card(column_id: int, title: str, details: Optional[str] = None) -> Card:
+        """Add new card to column."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Get next position
+            cursor.execute(
+                "SELECT MAX(position) as max_pos FROM cards WHERE column_id = ?",
+                (column_id,)
+            )
+            row = cursor.fetchone()
+            position = (row["max_pos"] or -1) + 1
+
+            # Insert card
+            cursor.execute(
+                "INSERT INTO cards (column_id, title, details, position) VALUES (?, ?, ?, ?)",
+                (column_id, title, details, position)
+            )
+
+            card_id = cursor.lastrowid
+            cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
+            card_row = cursor.fetchone()
+
+            return Card(
+                id=card_row["id"],
+                column_id=card_row["column_id"],
+                title=card_row["title"],
+                details=card_row["details"],
+                position=card_row["position"],
+                created_at=card_row["created_at"],
+                updated_at=card_row["updated_at"],
+            )
+
+    @staticmethod
+    def update_card(card_id: int, column_id: int, position: int) -> Card:
+        """Move card to new column/position."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "UPDATE cards SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (column_id, position, card_id)
+            )
+
+            cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
+            card_row = cursor.fetchone()
+
+            return Card(
+                id=card_row["id"],
+                column_id=card_row["column_id"],
+                title=card_row["title"],
+                details=card_row["details"],
+                position=card_row["position"],
+                created_at=card_row["created_at"],
+                updated_at=card_row["updated_at"],
+            )
+
+    @staticmethod
+    def delete_card(card_id: int) -> bool:
+        """Delete card."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM cards WHERE id = ?", (card_id,))
+            return cursor.rowcount > 0
+
+    @staticmethod
+    def rename_column(column_id: int, title: str) -> Column:
+        """Rename column."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "UPDATE columns SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (title, column_id)
+            )
+
+            cursor.execute("SELECT * FROM columns WHERE id = ?", (column_id,))
+            col_row = cursor.fetchone()
+
+            return Column(
+                id=col_row["id"],
+                board_id=col_row["board_id"],
+                title=col_row["title"],
+                position=col_row["position"],
+                created_at=col_row["created_at"],
+                updated_at=col_row["updated_at"],
+            )
