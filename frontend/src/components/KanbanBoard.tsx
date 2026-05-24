@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import { createId, initialData, moveCard, type BoardData, type Column, type Card } from "@/lib/kanban";
 import { useAuth } from "@/lib/auth-context";
 import {
   apiGetBoard,
@@ -21,7 +21,6 @@ import {
   apiMoveCard,
   apiDeleteCard,
   apiRenameColumn,
-  type Board,
   type Column as ApiColumn,
   type Card as ApiCard,
 } from "@/lib/api";
@@ -54,26 +53,28 @@ export const KanbanBoard = () => {
         const apiBoard = await apiGetBoard(sessionId);
         
         // Convert API board format to local board format
-        const boardData: BoardData = {
-          id: apiBoard.id.toString(),
-          title: apiBoard.title,
-          columns: apiBoard.columns.map((col: ApiColumn) => ({
+        const cardsRecord: Record<string, Card> = {};
+        const columns: Column[] = apiBoard.columns.map((col: ApiColumn) => {
+          const cardIds: string[] = [];
+          col.cards.forEach((card: ApiCard) => {
+            const cardId = card.id.toString();
+            cardIds.push(cardId);
+            cardsRecord[cardId] = {
+              id: cardId,
+              title: card.title,
+              details: card.details || "",
+            };
+          });
+          return {
             id: col.id.toString(),
             title: col.title,
-            cards: col.cards.map((card: ApiCard) => ({
-              id: card.id.toString(),
-              title: card.title,
-              details: card.details || "",
-            })),
-          })),
-          cards: apiBoard.columns.flatMap((col: ApiColumn) =>
-            col.cards.map((card: ApiCard) => ({
-              id: card.id.toString(),
-              columnId: col.id.toString(),
-              title: card.title,
-              details: card.details || "",
-            }))
-          ),
+            cardIds,
+          };
+        });
+
+        const boardData: BoardData = {
+          columns,
+          cards: cardsRecord,
         };
 
         setBoard(boardData);
@@ -103,42 +104,58 @@ export const KanbanBoard = () => {
       return;
     }
 
-    // Optimistic update: update UI immediately
+    // Use moveCard to update the local state optimistically
     const newColumns = moveCard(board.columns, active.id as string, over.id as string);
-    const newCards = board.columns.flatMap((col) =>
-      col.cards.map((card) => {
-        const newCol = newColumns.find((c) => c.id === col.id);
-        const newCard = newCol?.cards.find((c) => c.id === card.id);
-        if (newCard) {
-          const targetCol = newColumns.find((c) => c.cards.some((c) => c.id === card.id));
-          return { ...card, columnId: targetCol?.id || card.columnId };
-        }
-        return card;
-      })
-    );
 
     setBoard((prev) => ({
       ...prev,
       columns: newColumns,
-      cards: newCards,
     }));
+
+    // Find the target column and position for the API call
+    const activeColumn = newColumns.find((col) =>
+      col.cardIds.includes(active.id as string)
+    );
+    const cardId = parseInt(active.id as string);
+    const targetColumnId = activeColumn ? parseInt(activeColumn.id) : 0;
+    const position = activeColumn?.cardIds.indexOf(active.id as string) ?? 0;
 
     // Call API to persist change
     try {
-      const cardId = parseInt(active.id as string);
-      const targetColumnId = parseInt(over.id as string);
-      const targetColumn = newColumns.find((col) =>
-        col.cards.some((c) => c.id === active.id)
-      );
-      const position = targetColumn?.cards.findIndex((c) => c.id === active.id) ?? 0;
-
       await apiMoveCard(sessionId, cardId, targetColumnId, position);
     } catch (err) {
       setError("Failed to move card");
-      // Reload board on error
-      const apiBoard = await apiGetBoard(sessionId);
-      // Convert and update...
       console.error("Move card error:", err);
+      // Reload board on error
+      try {
+        const apiBoard = await apiGetBoard(sessionId);
+        const cardsRecord: Record<string, Card> = {};
+        const columns: Column[] = apiBoard.columns.map((col: ApiColumn) => {
+          const cardIds: string[] = [];
+          col.cards.forEach((card: ApiCard) => {
+            const cardId = card.id.toString();
+            cardIds.push(cardId);
+            cardsRecord[cardId] = {
+              id: cardId,
+              title: card.title,
+              details: card.details || "",
+            };
+          });
+          return {
+            id: col.id.toString(),
+            title: col.title,
+            cardIds,
+          };
+        });
+
+        const boardData: BoardData = {
+          columns,
+          cards: cardsRecord,
+        };
+        setBoard(boardData);
+      } catch (reloadErr) {
+        console.error("Failed to reload board:", reloadErr);
+      }
     }
   };
 
@@ -165,27 +182,25 @@ export const KanbanBoard = () => {
     if (!sessionId) return;
 
     const tempId = createId("card");
-    
+
     // Optimistic update
     setBoard((prev) => ({
       ...prev,
       columns: prev.columns.map((column) =>
         column.id === columnId
-          ? {
-              ...column,
-              cards: [...column.cards, { id: tempId, title, details }],
-            }
+          ? { ...column, cardIds: [...column.cardIds, tempId] }
           : column
       ),
-      cards: [
+      cards: {
         ...prev.cards,
-        { id: tempId, columnId, title, details },
-      ],
+        [tempId]: { id: tempId, title, details },
+      },
     }));
 
     try {
       const newCard = await apiAddCard(sessionId, parseInt(columnId), title, details);
-      
+      const newCardId = newCard.id.toString();
+
       // Replace temp card with real card from API
       setBoard((prev) => ({
         ...prev,
@@ -193,18 +208,23 @@ export const KanbanBoard = () => {
           column.id === columnId
             ? {
                 ...column,
-                cards: column.cards.map((card) =>
-                  card.id === tempId
-                    ? { id: newCard.id.toString(), title: newCard.title, details: newCard.details || "" }
-                    : card
-                ),
+                cardIds: column.cardIds.map((id) => (id === tempId ? newCardId : id)),
               }
             : column
         ),
-        cards: prev.cards.map((card) =>
-          card.id === tempId
-            ? { id: newCard.id.toString(), columnId, title: newCard.title, details: newCard.details || "" }
-            : card
+        cards: Object.fromEntries(
+          Object.entries(prev.cards).map(([id, card]) =>
+            id === tempId
+              ? [
+                  newCardId,
+                  {
+                    id: newCardId,
+                    title: newCard.title,
+                    details: newCard.details || "",
+                  },
+                ]
+              : [id, card]
+          )
         ),
       }));
     } catch (err) {
@@ -213,10 +233,12 @@ export const KanbanBoard = () => {
         ...prev,
         columns: prev.columns.map((column) =>
           column.id === columnId
-            ? { ...column, cards: column.cards.filter((c) => c.id !== tempId) }
+            ? { ...column, cardIds: column.cardIds.filter((id) => id !== tempId) }
             : column
         ),
-        cards: prev.cards.filter((c) => c.id !== tempId),
+        cards: Object.fromEntries(
+          Object.entries(prev.cards).filter(([id]) => id !== tempId)
+        ),
       }));
       setError("Failed to add card");
       console.error("Add card error:", err);
@@ -231,10 +253,12 @@ export const KanbanBoard = () => {
       ...prev,
       columns: prev.columns.map((column) =>
         column.id === columnId
-          ? { ...column, cards: column.cards.filter((c) => c.id !== cardId) }
+          ? { ...column, cardIds: column.cardIds.filter((id) => id !== cardId) }
           : column
       ),
-      cards: prev.cards.filter((c) => c.id !== cardId),
+      cards: Object.fromEntries(
+        Object.entries(prev.cards).filter(([id]) => id !== cardId)
+      ),
     }));
 
     try {
@@ -242,119 +266,6 @@ export const KanbanBoard = () => {
     } catch (err) {
       setError("Failed to delete card");
       console.error("Delete card error:", err);
-      // Reload board on error
-      const apiBoard = await apiGetBoard(sessionId);
-      // Convert and update...
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="mb-4 w-16 h-16 border-4 border-[#209dd7] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-[#888888]">Loading board...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center max-w-md">
-          <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
-            <p className="text-red-700 font-medium">Error</p>
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-[#753991] text-white rounded-lg hover:bg-[#5a2a6d] transition-colors"
-          >
-            Reload
-          </button>
-        </div>
-      </div>
-    );
-  }
-    setBoard((prev) => ({
-      ...prev,
-      columns: prev.columns.map((column) =>
-        column.id === columnId
-          ? {
-              ...column,
-              cards: [...column.cards, { id: tempId, title, details }],
-            }
-          : column
-      ),
-      cards: [
-        ...prev.cards,
-        { id: tempId, columnId, title, details },
-      ],
-    }));
-
-    try {
-      const newCard = await apiAddCard(sessionId, parseInt(columnId), title, details);
-      
-      // Replace temp card with real card from API
-      setBoard((prev) => ({
-        ...prev,
-        columns: prev.columns.map((column) =>
-          column.id === columnId
-            ? {
-                ...column,
-                cards: column.cards.map((card) =>
-                  card.id === tempId
-                    ? { id: newCard.id.toString(), title: newCard.title, details: newCard.details || "" }
-                    : card
-                ),
-              }
-            : column
-        ),
-        cards: prev.cards.map((card) =>
-          card.id === tempId
-            ? { id: newCard.id.toString(), columnId, title: newCard.title, details: newCard.details || "" }
-            : card
-        ),
-      }));
-    } catch (err) {
-      // Revert optimistic update on error
-      setBoard((prev) => ({
-        ...prev,
-        columns: prev.columns.map((column) =>
-          column.id === columnId
-            ? { ...column, cards: column.cards.filter((c) => c.id !== tempId) }
-            : column
-        ),
-        cards: prev.cards.filter((c) => c.id !== tempId),
-      }));
-      setError("Failed to add card");
-      console.error("Add card error:", err);
-    }
-  };
-
-  const handleDeleteCard = async (columnId: string, cardId: string) => {
-    if (!sessionId) return;
-
-    // Optimistic update
-    setBoard((prev) => ({
-      ...prev,
-      columns: prev.columns.map((column) =>
-        column.id === columnId
-          ? { ...column, cards: column.cards.filter((c) => c.id !== cardId) }
-          : column
-      ),
-      cards: prev.cards.filter((c) => c.id !== cardId),
-    }));
-
-    try {
-      await apiDeleteCard(sessionId, parseInt(cardId));
-    } catch (err) {
-      setError("Failed to delete card");
-      console.error("Delete card error:", err);
-      // Reload board on error
-      const apiBoard = await apiGetBoard(sessionId);
-      // Convert and update...
     }
   };
 
@@ -388,7 +299,7 @@ export const KanbanBoard = () => {
     );
   }
 
-  const activeCard = activeCardId ? cardsById[activeCardId as string] : null;
+  const activeCard = activeCardId ? cardsById[activeCardId] : null;
 
   return (
     <div className="relative overflow-hidden">
@@ -459,7 +370,7 @@ export const KanbanBoard = () => {
               <KanbanColumn
                 key={column.id}
                 column={column}
-                cards={column.cards}
+                cards={column.cardIds.map((cardId) => board.cards[cardId])}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}
@@ -476,7 +387,5 @@ export const KanbanBoard = () => {
         </DndContext>
       </main>
     </div>
-  );
-};
   );
 };
