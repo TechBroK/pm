@@ -1,6 +1,6 @@
 @echo off
 REM Start PM Backend Server (Windows)
-REM This script starts the FastAPI backend on localhost:8000
+REM This script builds the frontend and starts the FastAPI backend on localhost:8000
 
 echo Starting PM Backend Server...
 echo.
@@ -12,9 +12,21 @@ if not exist "backend\main.py" (
     exit /b 1
 )
 
-REM Install dependencies if needed
-echo Installing dependencies...
-python -m pip install -r backend\requirements.txt
+REM Build frontend
+echo Building frontend...
+cd frontend
+call npm install --silent
+call npm run build
+cd ..
+
+if %ERRORLEVEL% NEQ 0 (
+    echo Error: Frontend build failed
+    exit /b 1
+)
+
+REM Install backend dependencies if needed
+echo Installing backend dependencies...
+python -m pip install -q -r backend\requirements.txt
 
 REM Start the server
 echo.

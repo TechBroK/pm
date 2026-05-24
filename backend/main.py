@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
 Project Management MVP Backend
-FastAPI application serving static HTML and API endpoints
+FastAPI application serving frontend and API endpoints
 """
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-import os
+from fastapi.responses import JSONResponse, FileResponse
 import logging
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 # Create FastAPI app
 app = FastAPI(title="PM Backend", version="0.1.0")
 
-# Create static directory if it doesn't exist
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(static_dir, exist_ok=True)
+# Determine frontend build path
+backend_dir = Path(__file__).parent
+project_root = backend_dir.parent
+frontend_dist = project_root / "frontend" / "dist"
+
+logger.info(f"Frontend dist path: {frontend_dist}")
 
 
 @app.get("/api/test")
@@ -34,8 +37,20 @@ async def health_check():
     return JSONResponse({"status": "ok"})
 
 
-# Mount static files to serve at root
-app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+# Mount Next.js static assets
+if frontend_dist.exists():
+    logger.info("Mounting Next.js static files from frontend/dist")
+    app.mount("/_next", StaticFiles(directory=frontend_dist / "_next"), name="next-static")
+    
+    # Mount all static files from dist
+    try:
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+        logger.info("Successfully mounted frontend from frontend/dist")
+    except Exception as e:
+        logger.error(f"Failed to mount frontend: {e}")
+else:
+    logger.warning(f"Frontend dist not found at {frontend_dist}")
+    logger.warning("Run 'npm run build' in frontend/ directory to build the frontend")
 
 
 if __name__ == "__main__":

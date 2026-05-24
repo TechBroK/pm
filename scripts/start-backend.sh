@@ -1,6 +1,6 @@
 #!/bin/bash
 # Start PM Backend Server (macOS/Linux)
-# This script starts the FastAPI backend on localhost:8000
+# This script builds the frontend and starts the FastAPI backend on localhost:8000
 
 echo "Starting PM Backend Server..."
 echo ""
@@ -12,9 +12,21 @@ if [ ! -f "backend/main.py" ]; then
     exit 1
 fi
 
-# Install dependencies if needed
-echo "Installing dependencies..."
-python3 -m pip install -r backend/requirements.txt
+# Build frontend
+echo "Building frontend..."
+cd frontend
+npm install --silent
+npm run build
+cd ..
+
+if [ $? -ne 0 ]; then
+    echo "Error: Frontend build failed"
+    exit 1
+fi
+
+# Install backend dependencies if needed
+echo "Installing backend dependencies..."
+python3 -m pip install -q -r backend/requirements.txt
 
 # Start the server
 echo ""
