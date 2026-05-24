@@ -12,7 +12,7 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 from typing import Optional, Dict
-from db import Database, DatabaseOps
+from backend.db import Database, DatabaseOps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

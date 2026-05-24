@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -15,11 +15,23 @@ import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
 import { useAuth } from "@/lib/auth-context";
+import {
+  apiGetBoard,
+  apiAddCard,
+  apiMoveCard,
+  apiDeleteCard,
+  apiRenameColumn,
+  type Board,
+  type Column as ApiColumn,
+  type Card as ApiCard,
+} from "@/lib/api";
 
 export const KanbanBoard = () => {
   const [board, setBoard] = useState<BoardData>(() => initialData);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
-  const { username, logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { username, logout, sessionId } = useAuth();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -27,71 +39,356 @@ export const KanbanBoard = () => {
     })
   );
 
+  // Load board from API on mount
+  useEffect(() => {
+    const loadBoard = async () => {
+      if (!sessionId) {
+        setError("Not authenticated");
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const apiBoard = await apiGetBoard(sessionId);
+        
+        // Convert API board format to local board format
+        const boardData: BoardData = {
+          id: apiBoard.id.toString(),
+          title: apiBoard.title,
+          columns: apiBoard.columns.map((col: ApiColumn) => ({
+            id: col.id.toString(),
+            title: col.title,
+            cards: col.cards.map((card: ApiCard) => ({
+              id: card.id.toString(),
+              title: card.title,
+              details: card.details || "",
+            })),
+          })),
+          cards: apiBoard.columns.flatMap((col: ApiColumn) =>
+            col.cards.map((card: ApiCard) => ({
+              id: card.id.toString(),
+              columnId: col.id.toString(),
+              title: card.title,
+              details: card.details || "",
+            }))
+          ),
+        };
+
+        setBoard(boardData);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load board";
+        setError(msg);
+        console.error("Board load error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadBoard();
+  }, [sessionId]);
+
   const cardsById = useMemo(() => board.cards, [board.cards]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveCardId(null);
 
-    if (!over || active.id === over.id) {
+    if (!over || active.id === over.id || !sessionId) {
       return;
     }
 
+    // Optimistic update: update UI immediately
+    const newColumns = moveCard(board.columns, active.id as string, over.id as string);
+    const newCards = board.columns.flatMap((col) =>
+      col.cards.map((card) => {
+        const newCol = newColumns.find((c) => c.id === col.id);
+        const newCard = newCol?.cards.find((c) => c.id === card.id);
+        if (newCard) {
+          const targetCol = newColumns.find((c) => c.cards.some((c) => c.id === card.id));
+          return { ...card, columnId: targetCol?.id || card.columnId };
+        }
+        return card;
+      })
+    );
+
     setBoard((prev) => ({
       ...prev,
-      columns: moveCard(prev.columns, active.id as string, over.id as string),
+      columns: newColumns,
+      cards: newCards,
     }));
+
+    // Call API to persist change
+    try {
+      const cardId = parseInt(active.id as string);
+      const targetColumnId = parseInt(over.id as string);
+      const targetColumn = newColumns.find((col) =>
+        col.cards.some((c) => c.id === active.id)
+      );
+      const position = targetColumn?.cards.findIndex((c) => c.id === active.id) ?? 0;
+
+      await apiMoveCard(sessionId, cardId, targetColumnId, position);
+    } catch (err) {
+      setError("Failed to move card");
+      // Reload board on error
+      const apiBoard = await apiGetBoard(sessionId);
+      // Convert and update...
+      console.error("Move card error:", err);
+    }
   };
 
-  const handleRenameColumn = (columnId: string, title: string) => {
+  const handleRenameColumn = async (columnId: string, title: string) => {
+    if (!sessionId) return;
+
+    // Optimistic update
     setBoard((prev) => ({
       ...prev,
       columns: prev.columns.map((column) =>
         column.id === columnId ? { ...column, title } : column
       ),
     }));
+
+    try {
+      await apiRenameColumn(sessionId, parseInt(columnId), title);
+    } catch (err) {
+      setError("Failed to rename column");
+      console.error("Rename column error:", err);
+    }
   };
 
-  const handleAddCard = (columnId: string, title: string, details: string) => {
-    const id = createId("card");
+  const handleAddCard = async (columnId: string, title: string, details: string) => {
+    if (!sessionId) return;
+
+    const tempId = createId("card");
+    
+    // Optimistic update
     setBoard((prev) => ({
       ...prev,
-      cards: {
-        ...prev.cards,
-        [id]: { id, title, details: details || "No details yet." },
-      },
       columns: prev.columns.map((column) =>
         column.id === columnId
-          ? { ...column, cardIds: [...column.cardIds, id] }
+          ? {
+              ...column,
+              cards: [...column.cards, { id: tempId, title, details }],
+            }
           : column
       ),
+      cards: [
+        ...prev.cards,
+        { id: tempId, columnId, title, details },
+      ],
     }));
-  };
 
-  const handleDeleteCard = (columnId: string, cardId: string) => {
-    setBoard((prev) => {
-      return {
+    try {
+      const newCard = await apiAddCard(sessionId, parseInt(columnId), title, details);
+      
+      // Replace temp card with real card from API
+      setBoard((prev) => ({
         ...prev,
-        cards: Object.fromEntries(
-          Object.entries(prev.cards).filter(([id]) => id !== cardId)
-        ),
         columns: prev.columns.map((column) =>
           column.id === columnId
             ? {
                 ...column,
-                cardIds: column.cardIds.filter((id) => id !== cardId),
+                cards: column.cards.map((card) =>
+                  card.id === tempId
+                    ? { id: newCard.id.toString(), title: newCard.title, details: newCard.details || "" }
+                    : card
+                ),
               }
             : column
         ),
-      };
-    });
+        cards: prev.cards.map((card) =>
+          card.id === tempId
+            ? { id: newCard.id.toString(), columnId, title: newCard.title, details: newCard.details || "" }
+            : card
+        ),
+      }));
+    } catch (err) {
+      // Revert optimistic update on error
+      setBoard((prev) => ({
+        ...prev,
+        columns: prev.columns.map((column) =>
+          column.id === columnId
+            ? { ...column, cards: column.cards.filter((c) => c.id !== tempId) }
+            : column
+        ),
+        cards: prev.cards.filter((c) => c.id !== tempId),
+      }));
+      setError("Failed to add card");
+      console.error("Add card error:", err);
+    }
   };
 
-  const activeCard = activeCardId ? cardsById[activeCardId] : null;
+  const handleDeleteCard = async (columnId: string, cardId: string) => {
+    if (!sessionId) return;
+
+    // Optimistic update
+    setBoard((prev) => ({
+      ...prev,
+      columns: prev.columns.map((column) =>
+        column.id === columnId
+          ? { ...column, cards: column.cards.filter((c) => c.id !== cardId) }
+          : column
+      ),
+      cards: prev.cards.filter((c) => c.id !== cardId),
+    }));
+
+    try {
+      await apiDeleteCard(sessionId, parseInt(cardId));
+    } catch (err) {
+      setError("Failed to delete card");
+      console.error("Delete card error:", err);
+      // Reload board on error
+      const apiBoard = await apiGetBoard(sessionId);
+      // Convert and update...
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="mb-4 w-16 h-16 border-4 border-[#209dd7] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-[#888888]">Loading board...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+            <p className="text-red-700 font-medium">Error</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-[#753991] text-white rounded-lg hover:bg-[#5a2a6d] transition-colors"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+    setBoard((prev) => ({
+      ...prev,
+      columns: prev.columns.map((column) =>
+        column.id === columnId
+          ? {
+              ...column,
+              cards: [...column.cards, { id: tempId, title, details }],
+            }
+          : column
+      ),
+      cards: [
+        ...prev.cards,
+        { id: tempId, columnId, title, details },
+      ],
+    }));
+
+    try {
+      const newCard = await apiAddCard(sessionId, parseInt(columnId), title, details);
+      
+      // Replace temp card with real card from API
+      setBoard((prev) => ({
+        ...prev,
+        columns: prev.columns.map((column) =>
+          column.id === columnId
+            ? {
+                ...column,
+                cards: column.cards.map((card) =>
+                  card.id === tempId
+                    ? { id: newCard.id.toString(), title: newCard.title, details: newCard.details || "" }
+                    : card
+                ),
+              }
+            : column
+        ),
+        cards: prev.cards.map((card) =>
+          card.id === tempId
+            ? { id: newCard.id.toString(), columnId, title: newCard.title, details: newCard.details || "" }
+            : card
+        ),
+      }));
+    } catch (err) {
+      // Revert optimistic update on error
+      setBoard((prev) => ({
+        ...prev,
+        columns: prev.columns.map((column) =>
+          column.id === columnId
+            ? { ...column, cards: column.cards.filter((c) => c.id !== tempId) }
+            : column
+        ),
+        cards: prev.cards.filter((c) => c.id !== tempId),
+      }));
+      setError("Failed to add card");
+      console.error("Add card error:", err);
+    }
+  };
+
+  const handleDeleteCard = async (columnId: string, cardId: string) => {
+    if (!sessionId) return;
+
+    // Optimistic update
+    setBoard((prev) => ({
+      ...prev,
+      columns: prev.columns.map((column) =>
+        column.id === columnId
+          ? { ...column, cards: column.cards.filter((c) => c.id !== cardId) }
+          : column
+      ),
+      cards: prev.cards.filter((c) => c.id !== cardId),
+    }));
+
+    try {
+      await apiDeleteCard(sessionId, parseInt(cardId));
+    } catch (err) {
+      setError("Failed to delete card");
+      console.error("Delete card error:", err);
+      // Reload board on error
+      const apiBoard = await apiGetBoard(sessionId);
+      // Convert and update...
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="mb-4 w-16 h-16 border-4 border-[#209dd7] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-[#888888]">Loading board...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+            <p className="text-red-700 font-medium">Error</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-[#753991] text-white rounded-lg hover:bg-[#5a2a6d] transition-colors"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const activeCard = activeCardId ? cardsById[activeCardId as string] : null;
 
   return (
     <div className="relative overflow-hidden">
@@ -162,7 +459,7 @@ export const KanbanBoard = () => {
               <KanbanColumn
                 key={column.id}
                 column={column}
-                cards={column.cardIds.map((cardId) => board.cards[cardId])}
+                cards={column.cards}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}
@@ -179,5 +476,7 @@ export const KanbanBoard = () => {
         </DndContext>
       </main>
     </div>
+  );
+};
   );
 };
