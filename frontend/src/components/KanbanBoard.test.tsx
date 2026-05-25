@@ -1,22 +1,99 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { vi, beforeEach, afterEach } from "vitest";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { AuthProvider } from "@/lib/auth-context";
+import * as api from "@/lib/api";
+
+// Mock API module
+vi.mock("@/lib/api", () => ({
+  apiGetBoard: vi.fn(),
+  apiAddCard: vi.fn(),
+  apiMoveCard: vi.fn(),
+  apiDeleteCard: vi.fn(),
+  apiRenameColumn: vi.fn(),
+}));
+
+const mockBoardData = {
+  id: 1,
+  title: "Test Board",
+  columns: [
+    {
+      id: 1,
+      title: "Backlog",
+      position: 0,
+      cards: [
+        { id: 1, title: "Card 1", details: "Details 1", position: 0, column_id: 1 },
+      ],
+    },
+    {
+      id: 2,
+      title: "Discovery",
+      position: 1,
+      cards: [],
+    },
+    {
+      id: 3,
+      title: "In Progress",
+      position: 2,
+      cards: [],
+    },
+    {
+      id: 4,
+      title: "Review",
+      position: 3,
+      cards: [],
+    },
+    {
+      id: 5,
+      title: "Done",
+      position: 4,
+      cards: [],
+    },
+  ],
+};
 
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
 const renderWithAuth = (component: React.ReactElement) => {
+  // Set up localStorage with fake session
+  localStorage.setItem("pm_session", "test-session-id");
+  localStorage.setItem("pm_username", "testuser");
+  
   return render(<AuthProvider>{component}</AuthProvider>);
 };
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+  (api.apiGetBoard as any).mockResolvedValue(mockBoardData);
+  (api.apiAddCard as any).mockResolvedValue({
+    id: 999,
+    title: "New card",
+    details: "Notes",
+  });
+  (api.apiMoveCard as any).mockResolvedValue(undefined);
+  (api.apiDeleteCard as any).mockResolvedValue(undefined);
+  (api.apiRenameColumn as any).mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  localStorage.clear();
+});
+
 describe("KanbanBoard", () => {
-  it("renders five columns", () => {
+  it("renders five columns", async () => {
     renderWithAuth(<KanbanBoard />);
-    expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+    });
   });
 
   it("renames a column", async () => {
     renderWithAuth(<KanbanBoard />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+    });
     const column = getFirstColumn();
     const input = within(column).getByLabelText("Column title");
     await userEvent.clear(input);
@@ -26,6 +103,9 @@ describe("KanbanBoard", () => {
 
   it("adds and removes a card", async () => {
     renderWithAuth(<KanbanBoard />);
+    await waitFor(() => {
+      expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+    });
     const column = getFirstColumn();
     const addButton = within(column).getByRole("button", {
       name: /add a card/i,
@@ -37,15 +117,27 @@ describe("KanbanBoard", () => {
     const detailsInput = within(column).getByPlaceholderText(/details/i);
     await userEvent.type(detailsInput, "Notes");
 
-    await userEvent.click(within(column).getByRole("button", { name: /add card/i }));
+    const submitButton = within(column).getByRole("button", { name: /add card/i });
+    await userEvent.click(submitButton);
 
-    expect(within(column).getByText("New card")).toBeInTheDocument();
+    // Wait for optimistic update and API response
+    await waitFor(
+      () => {
+        expect(within(column).getByText("New card")).toBeInTheDocument();
+      },
+      { timeout: 3000 }
+    );
 
-    const deleteButton = within(column).getByRole("button", {
-      name: /delete new card/i,
+    // Find the delete button for the new card
+    const cards = within(column).getAllByTestId(/card-/);
+    const lastCard = cards[cards.length - 1];
+    const deleteButton = within(lastCard).getByRole("button", {
+      name: /delete/i,
     });
     await userEvent.click(deleteButton);
 
-    expect(within(column).queryByText("New card")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(column).queryByText("New card")).not.toBeInTheDocument();
+    });
   });
 });
