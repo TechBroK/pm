@@ -12,7 +12,12 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 from typing import Optional, Dict
+from dotenv import load_dotenv
 from backend.db import Database, DatabaseOps
+from backend.ai_service import AIService
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -193,6 +198,26 @@ async def rename_column(column_id: int, request: ColumnRenameRequest, session_id
 async def test_endpoint():
     """Simple test endpoint to verify API is working"""
     return JSONResponse({"message": "Hello from API"})
+
+
+@app.get("/api/ai/test")
+async def test_ai_connection():
+    """Test OpenRouter connection with a simple prompt"""
+    result = AIService.test_connection()
+    return JSONResponse(result)
+
+
+@app.post("/api/ai/ask")
+async def ask_ai(question: str, session_id: Optional[str] = None):
+    """Ask AI a question about the Kanban board"""
+    user_id = get_current_user_id(session_id)
+    
+    board = DatabaseOps.get_board(user_id)
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+    
+    result = AIService.ask_about_board("", board, question)
+    return JSONResponse(result)
 
 
 @app.get("/health")
