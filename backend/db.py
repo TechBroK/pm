@@ -326,15 +326,95 @@ class DatabaseOps:
 
     @staticmethod
     def update_card(card_id: int, column_id: int, position: int) -> Card:
-        """Move card to new column/position."""
-        with Database.get_connection() as conn:
-            cursor = conn.cursor()
+        """Move card to new column/position using a safe reordering algorithm."""
+        import sys
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        try:
+            # Get current card
+            cursor.execute("SELECT column_id, position FROM cards WHERE id = ?", (card_id,))
+            current_card = cursor.fetchone()
+            if not current_card:
+                raise ValueError(f"Card {card_id} not found")
+            
+            old_column_id = current_card["column_id"]
+            old_position = current_card["position"]
+            
+            print(f"DEBUG: Moving card {card_id} from ({old_column_id}, {old_position}) to ({column_id}, {position})", file=sys.stderr)
 
-            cursor.execute(
-                "UPDATE cards SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (column_id, position, card_id)
-            )
+            if old_column_id == column_id:
+                # Same column - direct update
+                print(f"DEBUG: Same column, direct update", file=sys.stderr)
+                cursor.execute(
+                    "UPDATE cards SET position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (position, card_id)
+                )
+                conn.commit()
+            else:
+                # Different column - more complex
+                print(f"DEBUG: Different column", file=sys.stderr)
+                
+                # Step 1: Remove card from old column (temporarily set to negative position to mark as moving)
+                print(f"DEBUG: Step 1 - Mark card as moving (position -1)", file=sys.stderr)
+                cursor.execute(
+                    "UPDATE cards SET position = -1 WHERE id = ?",
+                    (card_id,)
+                )
+                conn.commit()
+                
+                # Step 2: Reorder remaining cards in old column to remove gaps
+                print(f"DEBUG: Step 2 - Reordering old column {old_column_id}", file=sys.stderr)
+                cursor.execute(
+                    "SELECT id, position FROM cards WHERE column_id = ? AND position >= 0 ORDER BY position",
+                    (old_column_id,)
+                )
+                old_column_cards = cursor.fetchall()
+                for idx, card in enumerate(old_column_cards):
+                    if card["position"] != idx:
+                        print(f"DEBUG:   - Moving card {card['id']} from position {card['position']} to {idx}", file=sys.stderr)
+                        cursor.execute(
+                            "UPDATE cards SET position = ? WHERE id = ?",
+                            (idx, card["id"])
+                        )
+                conn.commit()
+                
+                # Step 3: Check if target position in new column is occupied
+                print(f"DEBUG: Step 3 - Checking if position {position} in column {column_id} is occupied", file=sys.stderr)
+                cursor.execute(
+                    "SELECT COUNT(*) as cnt FROM cards WHERE column_id = ? AND position >= ?",
+                    (column_id, position)
+                )
+                cards_at_or_after = cursor.fetchone()["cnt"]
+                
+                # If position is occupied, shift existing cards to the right
+                if cards_at_or_after > 0:
+                    print(f"DEBUG:   - Position occupied, shifting {cards_at_or_after} cards to the right", file=sys.stderr)
+                    cursor.execute(
+                        "SELECT id, position FROM cards WHERE column_id = ? AND position >= ? ORDER BY position DESC",
+                        (column_id, position)
+                    )
+                    cards_to_shift = cursor.fetchall()
+                    for card in cards_to_shift:
+                        new_pos = card["position"] + 1
+                        print(f"DEBUG:   - Shifting card {card['id']} from position {card['position']} to {new_pos}", file=sys.stderr)
+                        cursor.execute(
+                            "UPDATE cards SET position = ? WHERE id = ?",
+                            (new_pos, card["id"])
+                        )
+                conn.commit()
+                
+                # Step 4: Move our card to target column and position
+                print(f"DEBUG: Step 4 - Moving card {card_id} to column {column_id}, position {position}", file=sys.stderr)
+                cursor.execute(
+                    "UPDATE cards SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (column_id, position, card_id)
+                )
+                conn.commit()
+                print(f"DEBUG: Move complete", file=sys.stderr)
 
+            # Fetch updated card
             cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
             card_row = cursor.fetchone()
 
@@ -347,6 +427,12 @@ class DatabaseOps:
                 created_at=card_row["created_at"],
                 updated_at=card_row["updated_at"],
             )
+        except Exception as e:
+            print(f"DEBUG: Exception: {e}", file=sys.stderr)
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     @staticmethod
     def delete_card(card_id: int) -> bool:
