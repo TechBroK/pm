@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_API_URL = "https://openrouter.io/api/v1/chat/completions"
-MODEL = "openai/gpt-oss-120b"
+MODEL = "openai/gpt-3.5-turbo"
 
 
 class AIService:

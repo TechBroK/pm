@@ -4,6 +4,10 @@ Project Management MVP Backend
 FastAPI application serving frontend and API endpoints
 """
 
+# Load environment variables FIRST, before any other imports
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
@@ -12,12 +16,8 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 from typing import Optional, Dict
-from dotenv import load_dotenv
 from backend.db import Database, DatabaseOps
 from backend.ai_service import AIService
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

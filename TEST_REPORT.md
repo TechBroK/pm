@@ -8,6 +8,7 @@
 ## ✅ ISSUE FIXED: Move Card UNIQUE Constraint Violation
 
 ### The Problem
+
 ```
 ERROR: "UNIQUE constraint failed: cards.column_id, cards.position"
 Status: 400 BAD REQUEST
@@ -16,12 +17,14 @@ Status: 400 BAD REQUEST
 **Scenario**: Attempting to move a card from Column 1 to Column 2, position 0 (when Column 2 already had a card at position 0).
 
 **Root Cause**: The database has a `UNIQUE(column_id, position)` constraint. The initial fix attempt used a 2-step approach:
+
 1. Move to temporary position 999999
 2. Move to final position
 
 This failed because SQLite's UNIQUE constraint violation persisted during the UPDATE operations, even with explicit commits between steps.
 
 ### The Solution
+
 Implemented a **transaction-safe reordering algorithm** in `backend/db.py`:
 
 ```python
@@ -32,6 +35,7 @@ Implemented a **transaction-safe reordering algorithm** in `backend/db.py`:
 ```
 
 This approach:
+
 - ✅ Avoids UNIQUE constraint violations
 - ✅ Handles occupied target positions
 - ✅ Maintains data integrity
@@ -42,6 +46,7 @@ This approach:
 ## 📊 TEST RESULTS: Before vs After
 
 ### Before Fix (9/11 = 81%)
+
 ```
 API Endpoints:        2/2 ✅
 Board Operations:     6/7 ❌ (Move Card failed)
@@ -49,6 +54,7 @@ AI Integration:       1/2 ⚠️  (API key needed)
 ```
 
 ### After Fix (10/11 = 90%)
+
 ```
 API Endpoints:        2/2 ✅
 Board Operations:     7/7 ✅ (Move Card NOW WORKS!)
@@ -59,32 +65,35 @@ AI Integration:       1/2 ⚠️  (API key needed)
 
 ## ✅ ALL FEATURES WORKING
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Authentication** | ✅ PASS | Login/Logout working |
-| **Board Loading** | ✅ PASS | 5 columns, 8+ cards |
-| **Add Card** | ✅ PASS | Creates new cards |
-| **Move Card** | ✅ PASS | **FIXED - Now handles all scenarios** |
-| **Rename Column** | ✅ PASS | Updates column titles |
-| **Delete Card** | ✅ PASS | Removes cards |
-| **AI Service Ready** | ✅ PASS | Awaiting API key |
+| Feature              | Status  | Notes                                 |
+| -------------------- | ------- | ------------------------------------- |
+| **Authentication**   | ✅ PASS | Login/Logout working                  |
+| **Board Loading**    | ✅ PASS | 5 columns, 8+ cards                   |
+| **Add Card**         | ✅ PASS | Creates new cards                     |
+| **Move Card**        | ✅ PASS | **FIXED - Now handles all scenarios** |
+| **Rename Column**    | ✅ PASS | Updates column titles                 |
+| **Delete Card**      | ✅ PASS | Removes cards                         |
+| **AI Service Ready** | ✅ PASS | Awaiting API key                      |
 
 ---
 
 ## 🧪 TEST SCENARIOS THAT NOW WORK
 
 ### Scenario 1: Move to Occupied Position
+
 - ✅ Move card to position that already has a card
 - ✅ Target cards automatically shift right
 - ✅ No constraint violations
 
 ### Scenario 2: Move Between Columns
+
 - ✅ Move from Column 1 → Column 2 ✓
 - ✅ Move from Column 2 → Column 3 ✓
 - ✅ Move back to original column ✓
 - ✅ Position reordering works automatically
 
 ### Scenario 3: Complex Move Sequences
+
 - ✅ Add card to column 1
 - ✅ Move to column 2 (occupied)
 - ✅ Move to column 1 (different position)
@@ -134,9 +143,11 @@ AI Integration:       1/2 ⚠️  (API key needed)
 ## 🔧 TECHNICAL DETAILS
 
 ### Files Modified
+
 - **`backend/db.py`**: Rewrote `update_card()` method with new algorithm
 
 ### Key Changes
+
 ```python
 # OLD APPROACH (Failed)
 UPDATE cards SET position = 999999  # Temp move
@@ -150,6 +161,7 @@ UPDATE cards SET column_id = ?, position = ?  # Place card
 ```
 
 ### Database Integrity
+
 - ✅ UNIQUE(column_id, position) constraint maintained
 - ✅ No data loss or corruption
 - ✅ Cascade delete still working
