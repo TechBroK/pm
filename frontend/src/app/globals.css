@@ -18,6 +18,25 @@
   --font-sans: var(--font-body);
 }
 
+/* Theme classes toggled on <body> */
+.theme-light {
+  --surface: #f7f8fb;
+  --surface-strong: #ffffff;
+  --navy-dark: #032147;
+  --gray-text: #666666;
+  --stroke: rgba(3, 33, 71, 0.08);
+  --primary-blue: #209dd7;
+}
+
+.theme-dark {
+  --surface: #0b1220;
+  --surface-strong: #0f1724;
+  --navy-dark: #e6eef9;
+  --gray-text: #b8c7db;
+  --stroke: rgba(255,255,255,0.06);
+  --primary-blue: #2fb0ff;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -27,6 +46,11 @@ body {
   color: var(--navy-dark);
   font-family: var(--font-body), "Segoe UI", sans-serif;
   margin: 0;
+}
+
+/* smooth transitions for theme changes */
+body {
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 .font-display {

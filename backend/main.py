@@ -8,6 +8,14 @@ FastAPI application serving frontend and API endpoints
 from dotenv import load_dotenv
 load_dotenv()
 
+# Ensure project root is on sys.path so module imports work when running
+# `python backend/main.py` directly (avoids ModuleNotFoundError for 'backend')
+import sys
+from pathlib import Path as _Path_for_sys
+_proj_root = _Path_for_sys(__file__).resolve().parent.parent
+if str(_proj_root) not in sys.path:
+    sys.path.insert(0, str(_proj_root))
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
