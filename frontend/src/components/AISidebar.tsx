@@ -6,9 +6,13 @@ import { useAuth } from '@/lib/auth-context';
 function BotAvatar({ size = 20 }: { size?: number }) {
   const s = size;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: s, height: s, borderRadius: s, background: 'var(--primary-blue)', color: 'white', fontSize: Math.max(12, s - 6) }}>
-      🤖
-    </span>
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <rect width="24" height="24" rx="6" fill="var(--primary-blue)" />
+      <circle cx="8.5" cy="11" r="1.5" fill="white" />
+      <circle cx="15.5" cy="11" r="1.5" fill="white" />
+      <rect x="7" y="14" width="10" height="1.6" rx="0.8" fill="white" />
+      <rect x="9" y="4" width="6" height="3" rx="1" fill="rgba(255,255,255,0.06)" />
+    </svg>
   );
 }
 
@@ -41,7 +45,7 @@ export default function AISidebar() {
       <button
         aria-label="Toggle AI sidebar"
         onClick={() => setOpen(!open)}
-        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 60, padding: '10px 14px', borderRadius: 10, background: 'var(--secondary-purple)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: 8 }}
+        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 60, padding: '10px 14px', borderRadius: 10, background: 'var(--secondary-purple)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: 8, boxShadow: 'var(--ai-button-shadow)' }}
       >
         <BotAvatar size={20} />
         <span style={{ fontWeight: 600 }}>Ask AI</span>

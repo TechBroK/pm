@@ -21,11 +21,12 @@
 /* Theme classes toggled on <body> */
 .theme-light {
   --surface: #f7f8fb;
-  --surface-strong: #ffffff;
+  --surface-strong: #f5f7fb; /* slightly darker card surface for separation */
   --navy-dark: #032147;
   --gray-text: #666666;
   --stroke: rgba(3, 33, 71, 0.08);
   --primary-blue: #209dd7;
+  --ai-button-shadow: 0 6px 18px rgba(3,33,71,0.08);
 }
 
 .theme-dark {
@@ -35,6 +36,7 @@
   --gray-text: #b8c7db;
   --stroke: rgba(255,255,255,0.06);
   --primary-blue: #2fb0ff;
+  --ai-button-shadow: 0 8px 22px rgba(0,0,0,0.6);
 }
 
 * {

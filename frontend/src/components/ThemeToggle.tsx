@@ -3,22 +3,26 @@
 import React, { useEffect, useState } from 'react';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-      const t = localStorage.getItem('pm_theme');
-      return (t as 'light' | 'dark') || 'light';
-    } catch {
-      return 'light';
-    }
-  });
+  // Don't read localStorage during initial render to avoid hydration mismatches.
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    try {
+      const t = localStorage.getItem('pm_theme') as 'light' | 'dark' | null;
+      if (t) setTheme(t);
+    } catch {}
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     document.body.classList.remove('theme-light', 'theme-dark');
     document.body.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light');
     try {
       localStorage.setItem('pm_theme', theme);
     } catch {}
-  }, [theme]);
+  }, [theme, mounted]);
 
   return (
     <button
@@ -26,8 +30,8 @@ export default function ThemeToggle() {
       onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
       style={{ position: 'fixed', right: 16, top: 16, zIndex: 70, padding: 8, borderRadius: 8, background: 'transparent', border: '1px solid var(--stroke)', display: 'flex', alignItems: 'center', gap: 8 }}
     >
-      <span style={{ fontSize: 14 }}>{theme === 'dark' ? '🌙' : '☀️'}</span>
-      <span style={{ fontSize: 13, color: 'var(--gray-text)' }}>{theme === 'dark' ? 'Dark' : 'Light'}</span>
+      <span style={{ fontSize: 14 }}>{mounted ? (theme === 'dark' ? '🌙' : '☀️') : '●'}</span>
+      <span style={{ fontSize: 13, color: 'var(--gray-text)' }}>{mounted ? (theme === 'dark' ? 'Dark' : 'Light') : ''}</span>
     </button>
   );
 }

@@ -3,7 +3,6 @@ import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import AISidebar from '@/components/AISidebar';
-import ThemeToggle from '@/components/ThemeToggle';
 
 const displayFont = Space_Grotesk({
   variable: "--font-display",
@@ -29,7 +28,6 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${displayFont.variable} ${bodyFont.variable}`}>
         <AuthProvider>
-          <ThemeToggle />
           {children}
           <AISidebar />
         </AuthProvider>
