@@ -9,3 +9,30 @@ frontend/node_modules/
 frontend/.next/
 dist/
 test-results/
+
+# Exclude test and debug files
+test_*.py
+debug_*.py
+check_db.py
+comprehensive_demo.py
+verify_db.py
+diagnose_*.py
+FINAL_TEST_REPORT.py
+proof_of_fix.py
+PART_8_*.md
+review.md
+
+# Exclude development files
+.vscode/
+.env.local
+.env.*.local
+*.log
+
+# Exclude git
+.gitignore
+.gitattributes
+
+# Exclude documentation that shouldn't be in production
+docs/
+README.md
+AGENTS.md

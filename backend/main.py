@@ -11,6 +11,7 @@ load_dotenv()
 # Ensure project root is on sys.path so module imports work when running
 # `python backend/main.py` directly (avoids ModuleNotFoundError for 'backend')
 import sys
+import os
 from pathlib import Path as _Path_for_sys
 _proj_root = _Path_for_sys(__file__).resolve().parent.parent
 if str(_proj_root) not in sys.path:
@@ -28,16 +29,33 @@ from backend.db import Database, DatabaseOps
 from backend.ai_service import AIService
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Environment configuration
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+IS_PRODUCTION = ENVIRONMENT == "production"
+logger.info(f"Starting in {ENVIRONMENT} mode")
 
 # Create FastAPI app
 app = FastAPI(title="PM Backend", version="0.1.0")
 
-# Add CORS middleware for development
+# Configure CORS based on environment
+if IS_PRODUCTION:
+    # Production: restrict CORS to specific origins
+    allowed_origins = os.getenv("ALLOWED_ORIGINS", "localhost:3000").split(",")
+    logger.info(f"Production mode: CORS allowed for {allowed_origins}")
+else:
+    # Development: allow all origins
+    allowed_origins = ["*"]
+    logger.info("Development mode: CORS allows all origins")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,9 +66,18 @@ app.add_middleware(
 async def startup_event():
     """Initialize database on startup"""
     logger.info("Initializing database...")
-    Database.init()
-    Database.seed_data()
-    logger.info("Database initialized successfully")
+    try:
+        Database.init()
+        
+        # Only seed data in development, or if SEED_ON_STARTUP env var is set
+        if not IS_PRODUCTION or os.getenv("SEED_ON_STARTUP") == "true":
+            logger.info("Seeding initial data...")
+            Database.seed_data()
+        
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}", exc_info=True)
+        raise
 
 
 # Session management (simple in-memory for MVP)
@@ -244,17 +271,25 @@ logger.info(f"Frontend dist path: {frontend_dist}")
 # Mount Next.js static assets
 if frontend_dist.exists():
     logger.info("Mounting Next.js static files from frontend/dist")
-    app.mount("/_next", StaticFiles(directory=frontend_dist / "_next"), name="next-static")
     
-    # Mount all static files from dist
+    # Mount _next assets with long cache
+    next_dist = frontend_dist / "_next"
+    if next_dist.exists():
+        app.mount("/_next", StaticFiles(directory=next_dist), name="next-static")
+    else:
+        logger.warning(f"_next directory not found at {next_dist}")
+    
+    # Mount all static files from dist (fallback to HTML for SPA routing)
     try:
         app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
         logger.info("Successfully mounted frontend from frontend/dist")
     except Exception as e:
-        logger.error(f"Failed to mount frontend: {e}")
+        logger.error(f"Failed to mount frontend: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Frontend assets not available")
 else:
-    logger.warning(f"Frontend dist not found at {frontend_dist}")
-    logger.warning("Run 'npm run build' in frontend/ directory to build the frontend")
+    logger.critical(f"Frontend dist not found at {frontend_dist}")
+    if not IS_PRODUCTION:
+        logger.warning("Run 'npm run build' in frontend/ directory to build the frontend")
 
 
 if __name__ == "__main__":
