@@ -50,8 +50,24 @@ class Card:
     title: str
     details: Optional[str]
     position: int
+    priority: str = "medium"  # low, medium, high
+    due_date: Optional[str] = None
+    assignee: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class Activity:
+    """Activity log entry."""
+    id: int
+    user_id: int
+    board_id: int
+    action: str  # created, updated, moved, deleted
+    entity_type: str  # card, column, board
+    entity_id: int
+    details: Optional[str]
     created_at: str
-    updated_at: str
 
 
 class Database:
@@ -107,6 +123,9 @@ class Database:
                 title TEXT NOT NULL,
                 details TEXT,
                 position INTEGER NOT NULL,
+                priority TEXT DEFAULT 'medium',
+                due_date DATE,
+                assignee TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (column_id) REFERENCES columns(id) ON DELETE CASCADE,
@@ -114,10 +133,28 @@ class Database:
             )
         """)
 
+        # Activity log table for tracking changes
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                board_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
+            )
+        """)
+
         # Create indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_boards_user_id ON boards(user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_columns_board_id ON columns(board_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_column_id ON cards(column_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_activity_board ON activity_log(board_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_activity_user ON activity_log(user_id)")
 
         conn.commit()
         conn.close()
@@ -280,6 +317,9 @@ class DatabaseOps:
                             "title": card_row["title"],
                             "details": card_row["details"],
                             "position": card_row["position"],
+                            "priority": card_row["priority"] or "medium",
+                            "due_date": card_row["due_date"],
+                            "assignee": card_row["assignee"],
                             "created_at": card_row["created_at"],
                             "updated_at": card_row["updated_at"],
                         }
@@ -291,7 +331,9 @@ class DatabaseOps:
         return board
 
     @staticmethod
-    def add_card(column_id: int, title: str, details: Optional[str] = None) -> Card:
+    def add_card(column_id: int, title: str, details: Optional[str] = None,
+                priority: str = "medium", due_date: Optional[str] = None,
+                assignee: Optional[str] = None) -> Card:
         """Add new card to column."""
         with Database.get_connection() as conn:
             cursor = conn.cursor()
@@ -304,10 +346,10 @@ class DatabaseOps:
             row = cursor.fetchone()
             position = (row["max_pos"] or -1) + 1
 
-            # Insert card
+            # Insert card with new fields
             cursor.execute(
-                "INSERT INTO cards (column_id, title, details, position) VALUES (?, ?, ?, ?)",
-                (column_id, title, details, position)
+                "INSERT INTO cards (column_id, title, details, position, priority, due_date, assignee) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (column_id, title, details, position, priority, due_date, assignee)
             )
 
             card_id = cursor.lastrowid
@@ -320,6 +362,9 @@ class DatabaseOps:
                 title=card_row["title"],
                 details=card_row["details"],
                 position=card_row["position"],
+                priority=card_row["priority"] or "medium",
+                due_date=card_row["due_date"],
+                assignee=card_row["assignee"],
                 created_at=card_row["created_at"],
                 updated_at=card_row["updated_at"],
             )
@@ -477,6 +522,9 @@ class DatabaseOps:
                 title=card_row["title"],
                 details=card_row["details"],
                 position=card_row["position"],
+                priority=card_row["priority"] or "medium",
+                due_date=card_row["due_date"],
+                assignee=card_row["assignee"],
                 created_at=card_row["created_at"],
                 updated_at=card_row["updated_at"],
             )
@@ -516,4 +564,59 @@ class DatabaseOps:
                 position=col_row["position"],
                 created_at=col_row["created_at"],
                 updated_at=col_row["updated_at"],
+            )
+
+    @staticmethod
+    def update_card_details(card_id: int, title: str = None, details: str = None, 
+                           priority: str = None, due_date: str = None, 
+                           assignee: str = None) -> Card:
+        """Update card details (title, details, priority, due_date, assignee)."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build update query dynamically
+            updates = []
+            params = []
+            
+            if title is not None:
+                updates.append("title = ?")
+                params.append(title)
+            if details is not None:
+                updates.append("details = ?")
+                params.append(details)
+            if priority is not None:
+                updates.append("priority = ?")
+                params.append(priority)
+            if due_date is not None:
+                updates.append("due_date = ?")
+                params.append(due_date)
+            if assignee is not None:
+                updates.append("assignee = ?")
+                params.append(assignee)
+            
+            if updates:
+                updates.append("updated_at = CURRENT_TIMESTAMP")
+                params.append(card_id)
+                
+                query = f"UPDATE cards SET {', '.join(updates)} WHERE id = ?"
+                cursor.execute(query, params)
+            
+            # Fetch updated card
+            cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
+            card_row = cursor.fetchone()
+            
+            if not card_row:
+                raise ValueError(f"Card {card_id} not found")
+            
+            return Card(
+                id=card_row["id"],
+                column_id=card_row["column_id"],
+                title=card_row["title"],
+                details=card_row["details"],
+                position=card_row["position"],
+                priority=card_row["priority"] or "medium",
+                due_date=card_row["due_date"],
+                assignee=card_row["assignee"],
+                created_at=card_row["created_at"],
+                updated_at=card_row["updated_at"],
             )

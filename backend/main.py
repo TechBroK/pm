@@ -105,6 +105,17 @@ class LoginResponse(BaseModel):
 class CardRequest(BaseModel):
     title: str
     details: Optional[str] = None
+    priority: str = "medium"
+    due_date: Optional[str] = None
+    assignee: Optional[str] = None
+
+
+class CardUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    details: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[str] = None
+    assignee: Optional[str] = None
 
 
 class CardPositionRequest(BaseModel):
@@ -165,13 +176,23 @@ async def add_card(request: CardRequest, session_id: Optional[str] = None, colum
         raise HTTPException(status_code=400, detail="column_id required")
     
     try:
-        card = DatabaseOps.add_card(column_id, request.title, request.details)
+        card = DatabaseOps.add_card(
+            column_id, 
+            request.title, 
+            request.details,
+            request.priority,
+            request.due_date,
+            request.assignee
+        )
         return {
             "id": card.id,
             "column_id": card.column_id,
             "title": card.title,
             "details": card.details,
             "position": card.position,
+            "priority": card.priority,
+            "due_date": card.due_date,
+            "assignee": card.assignee,
             "created_at": card.created_at,
             "updated_at": card.updated_at,
         }
@@ -192,6 +213,39 @@ async def move_card(card_id: int, request: CardPositionRequest, session_id: Opti
             "title": card.title,
             "details": card.details,
             "position": card.position,
+            "priority": card.priority,
+            "due_date": card.due_date,
+            "assignee": card.assignee,
+            "created_at": card.created_at,
+            "updated_at": card.updated_at,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.patch("/api/board/cards/{card_id}")
+async def update_card_details(card_id: int, request: CardUpdateRequest, session_id: Optional[str] = None):
+    """Update card details (title, details, priority, due_date, assignee)"""
+    user_id = get_current_user_id(session_id)
+    
+    try:
+        card = DatabaseOps.update_card_details(
+            card_id,
+            title=request.title,
+            details=request.details,
+            priority=request.priority,
+            due_date=request.due_date,
+            assignee=request.assignee
+        )
+        return {
+            "id": card.id,
+            "column_id": card.column_id,
+            "title": card.title,
+            "details": card.details,
+            "position": card.position,
+            "priority": card.priority,
+            "due_date": card.due_date,
+            "assignee": card.assignee,
             "created_at": card.created_at,
             "updated_at": card.updated_at,
         }

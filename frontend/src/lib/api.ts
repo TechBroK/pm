@@ -43,7 +43,7 @@ export interface LoginResponse {
   username: string;
 }
 
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "/api";
 
 /**
  * Make API request with session handling
@@ -54,7 +54,12 @@ async function apiCall<T>(
   body?: Record<string, unknown>,
   sessionId?: string
 ): Promise<T> {
-  const url = new URL(`${API_BASE}${endpoint}`);
+  // Handle both relative and absolute URLs
+  const urlString = API_BASE.startsWith("http") 
+    ? `${API_BASE}${endpoint}` 
+    : `${window.location.origin}${API_BASE}${endpoint}`;
+  
+  const url = new URL(urlString);
 
   // Add session_id as query param if provided
   if (sessionId) {

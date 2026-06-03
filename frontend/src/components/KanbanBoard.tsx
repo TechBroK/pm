@@ -81,7 +81,7 @@ export const KanbanBoard = () => {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to load board";
         setError(msg);
-        console.error("Board load error:", err);
+        // console.error("Board load error:", err);
       } finally {
         setIsLoading(false);
       }
