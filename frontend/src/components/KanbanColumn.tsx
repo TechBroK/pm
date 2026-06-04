@@ -10,6 +10,7 @@ type KanbanColumnProps = {
   cards: Card[];
   onRename: (columnId: string, title: string) => void;
   onAddCard: (columnId: string, title: string, details: string) => void;
+  onEditCard: (cardId: string, title: string, details: string) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
 };
 
@@ -18,6 +19,7 @@ export const KanbanColumn = ({
   cards,
   onRename,
   onAddCard,
+  onEditCard,
   onDeleteCard,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
@@ -42,8 +44,9 @@ export const KanbanColumn = ({
           <input
             value={column.title}
             onChange={(event) => onRename(column.id, event.target.value)}
-            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-var(--navy-dark) outline-none"
-            aria-label="Column title"
+            className="mt-3 w-full rounded-lg border border-transparent bg-transparent px-2 py-1 font-display text-lg font-semibold text-var(--navy-dark) outline-none transition focus:border-[var(--primary-blue)] focus:bg-white"
+            aria-label={`Edit ${column.title} column title`}
+            title="Edit column title"
           />
         </div>
       </div>
@@ -53,6 +56,7 @@ export const KanbanColumn = ({
             <KanbanCard
               key={card.id}
               card={card}
+              onEdit={onEditCard}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
             />
           ))}

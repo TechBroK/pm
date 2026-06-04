@@ -13,7 +13,11 @@ const workflowSteps = [
   },
   {
     title: 'Keep the board familiar',
-    body: 'Rename columns so the workflow matches the language your team already uses.',
+    body: 'Rename columns like Discovery, Review, or Done so the workflow matches the language your team already uses.',
+  },
+  {
+    title: 'Refine card details',
+    body: 'Edit any card after creating it. Update the title or details as the work becomes clearer.',
   },
   {
     title: 'Ask the AI sidebar',
@@ -68,7 +72,7 @@ export default function OnboardingPage() {
       </section>
 
       <section className="mx-auto w-full max-w-6xl px-5 py-8 md:px-8">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           {workflowSteps.map((step, index) => (
             <article
               key={step.title}
@@ -96,6 +100,8 @@ export default function OnboardingPage() {
           <div className="grid gap-3">
             {[
               'Create one card per task so progress is easy to scan.',
+              'Edit card titles and details whenever scope, notes, or next steps change.',
+              'Rename columns like Discovery or Done directly from the column header.',
               'Use card details for context, acceptance notes, blockers, or next steps.',
               'Keep column names short so the board remains readable.',
               'Move cards often; the board is most useful when it reflects reality.',

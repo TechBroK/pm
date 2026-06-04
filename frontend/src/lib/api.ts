@@ -34,6 +34,9 @@ export interface Card {
   title: string;
   details?: string;
   position: number;
+  priority?: "low" | "medium" | "high";
+  due_date?: string | null;
+  assignee?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +53,7 @@ const API_BASE = "/api";
  */
 async function apiCall<T>(
   endpoint: string,
-  method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
   body?: Record<string, unknown>,
   sessionId?: string
 ): Promise<T> {
@@ -180,6 +183,23 @@ export async function apiDeleteCard(
   cardId: number
 ): Promise<void> {
   return apiCall(`/board/cards/${cardId}`, "DELETE", undefined, sessionId);
+}
+
+/**
+ * Update card title and details
+ */
+export async function apiUpdateCard(
+  sessionId: string,
+  cardId: number,
+  title: string,
+  details: string
+): Promise<Card> {
+  return apiCall<Card>(
+    `/board/cards/${cardId}`,
+    "PATCH",
+    { title, details },
+    sessionId
+  );
 }
 
 /**

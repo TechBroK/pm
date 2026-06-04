@@ -20,6 +20,7 @@ import {
   apiAddCard,
   apiMoveCard,
   apiDeleteCard,
+  apiUpdateCard,
   apiRenameColumn,
   type Column as ApiColumn,
   type Card as ApiCard,
@@ -63,6 +64,9 @@ export const KanbanBoard = () => {
               id: cardId,
               title: card.title,
               details: card.details || "",
+              priority: card.priority,
+              due_date: card.due_date || undefined,
+              assignee: card.assignee || undefined,
             };
           });
           return {
@@ -139,6 +143,9 @@ export const KanbanBoard = () => {
               id: cardId,
               title: card.title,
               details: card.details || "",
+              priority: card.priority,
+              due_date: card.due_date || undefined,
+              assignee: card.assignee || undefined,
             };
           });
           return {
@@ -269,6 +276,54 @@ export const KanbanBoard = () => {
     }
   };
 
+  const handleEditCard = async (cardId: string, title: string, details: string) => {
+    if (!sessionId) return;
+
+    const previousCard = board.cards[cardId];
+
+    setBoard((prev) => ({
+      ...prev,
+      cards: {
+        ...prev.cards,
+        [cardId]: {
+          ...prev.cards[cardId],
+          title,
+          details,
+        },
+      },
+    }));
+
+    try {
+      const updatedCard = await apiUpdateCard(sessionId, parseInt(cardId), title, details);
+      setBoard((prev) => ({
+        ...prev,
+        cards: {
+          ...prev.cards,
+          [cardId]: {
+            ...prev.cards[cardId],
+            title: updatedCard.title,
+            details: updatedCard.details || "",
+            priority: updatedCard.priority,
+            due_date: updatedCard.due_date || undefined,
+            assignee: updatedCard.assignee || undefined,
+          },
+        },
+      }));
+    } catch (err) {
+      if (previousCard) {
+        setBoard((prev) => ({
+          ...prev,
+          cards: {
+            ...prev.cards,
+            [cardId]: previousCard,
+          },
+        }));
+      }
+      setError("Failed to edit card");
+      console.error("Edit card error:", err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -373,6 +428,7 @@ export const KanbanBoard = () => {
                 cards={column.cardIds.map((cardId) => board.cards[cardId])}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
+                onEditCard={handleEditCard}
                 onDeleteCard={handleDeleteCard}
               />
             ))}
