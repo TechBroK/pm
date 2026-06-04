@@ -25,6 +25,7 @@ from pydantic import BaseModel
 import logging
 from pathlib import Path
 from typing import Optional, Dict
+import uuid
 from backend.db import Database, DatabaseOps
 from backend.ai_service import AIService
 
@@ -91,6 +92,13 @@ def get_current_user_id(session_id: Optional[str] = None) -> int:
     return sessions[session_id]
 
 
+def create_session(user_id: int) -> str:
+    """Create a session for a user."""
+    session_id = str(uuid.uuid4())
+    sessions[session_id] = user_id
+    return session_id
+
+
 # Models
 class LoginRequest(BaseModel):
     username: str
@@ -131,19 +139,31 @@ class ColumnRenameRequest(BaseModel):
 
 @app.post("/api/auth/login")
 async def login(request: LoginRequest):
-    """Authenticate user with hardcoded credentials"""
-    # MVP: hardcoded user/password
-    if request.username == "user" and request.password == "password":
-        user = DatabaseOps.get_user_by_username(request.username)
-        if user:
-            # Create session
-            import uuid
-            session_id = str(uuid.uuid4())
-            sessions[session_id] = user.id
-            
-            return LoginResponse(session_id=session_id, username=user.username)
+    """Authenticate user credentials."""
+    user = DatabaseOps.get_user_by_username(request.username.strip())
+    if user and user.password_hash == request.password:
+        session_id = create_session(user.id)
+        return LoginResponse(session_id=session_id, username=user.username)
     
     raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@app.post("/api/auth/signup")
+async def signup(request: LoginRequest):
+    """Create a new user and sign them in."""
+    username = request.username.strip()
+    password = request.password.strip()
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    try:
+        user = DatabaseOps.create_user(username, password)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Username already exists")
+
+    session_id = create_session(user.id)
+    return LoginResponse(session_id=session_id, username=user.username)
 
 
 @app.post("/api/auth/logout")

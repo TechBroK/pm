@@ -116,6 +116,19 @@ export async function apiLogin(
 }
 
 /**
+ * Create a new user account
+ */
+export async function apiSignup(
+  username: string,
+  password: string
+): Promise<LoginResponse> {
+  return apiCall<LoginResponse>("/auth/signup", "POST", {
+    username,
+    password,
+  });
+}
+
+/**
  * Logout and clear session
  */
 export async function apiLogout(sessionId: string): Promise<void> {

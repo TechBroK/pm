@@ -250,6 +250,49 @@ class DatabaseOps:
     """Database CRUD operations."""
 
     @staticmethod
+    def create_user(username: str, password: str) -> User:
+        """Create a user with one default board and fixed columns."""
+        with Database.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                    (username, password)
+                )
+            except sqlite3.IntegrityError:
+                raise ValueError("Username already exists")
+
+            user_id = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO boards (user_id, title) VALUES (?, ?)",
+                (user_id, "My Board")
+            )
+            board_id = cursor.lastrowid
+
+            default_columns = [
+                ("Backlog", 0),
+                ("Discovery", 1),
+                ("In Progress", 2),
+                ("Review", 3),
+                ("Done", 4),
+            ]
+
+            for title, position in default_columns:
+                cursor.execute(
+                    "INSERT INTO columns (board_id, title, position) VALUES (?, ?, ?)",
+                    (board_id, title, position)
+                )
+
+            cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            return User(
+                id=row["id"],
+                username=row["username"],
+                password_hash=row["password_hash"],
+                created_at=row["created_at"]
+            )
+
+    @staticmethod
     def get_user_by_username(username: str) -> Optional[User]:
         """Get user by username."""
         with Database.get_connection() as conn:

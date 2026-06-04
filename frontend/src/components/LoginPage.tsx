@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, signup } = useAuth();
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,10 +28,12 @@ export default function LoginPage() {
       return;
     }
 
-    const success = await login(username, password);
+    const success = mode === 'login'
+      ? await login(username, password)
+      : await signup(username, password);
     
     if (!success) {
-      setError('Invalid username or password');
+      setError(mode === 'login' ? 'Invalid username or password' : 'Could not create that account');
       setPassword('');
     }
     
@@ -54,12 +57,12 @@ export default function LoginPage() {
               </div>
             </div>
             <h1 className="text-4xl font-bold text-[#032147] mb-2">Kanban Studio</h1>
-            <p className="text-[#888888]">Sign in to your project board</p>
+            <p className="text-[#888888]">
+              {mode === 'login' ? 'Sign in to your project board' : 'Create an account to test your own board'}
+            </p>
           </div>
 
-          {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username Input */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-[#032147] mb-2">
                 Username
@@ -70,14 +73,13 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="user"
+                placeholder={mode === 'login' ? 'user' : 'choose a username'}
                 disabled={isLoading}
                 autoComplete="username"
                 className="w-full px-4 py-3 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
 
-            {/* Password Input */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-[#032147] mb-2">
                 Password
@@ -90,7 +92,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="password"
                   disabled={isLoading}
-                  autoComplete="current-password"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   className="w-full px-4 py-3 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500 pr-10"
                 />
                 <button
@@ -120,13 +122,27 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Login Button */}
             <button
               type="submit"
               disabled={isLoading}
               className="w-full py-3 px-4 bg-[#753991] hover:bg-[#5a2a6d] text-white font-medium rounded-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading
+                ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
+                : (mode === 'login' ? 'Sign In' : 'Create Account')}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === 'login' ? 'signup' : 'login');
+                setError('');
+                setPassword('');
+              }}
+              disabled={isLoading}
+              className="w-full py-2 text-sm font-medium text-[#209dd7] hover:text-[#032147] disabled:text-[#888888] transition-colors"
+            >
+              {mode === 'login' ? 'Create a test account' : 'Already have an account? Sign in'}
             </button>
           </form>
         </div>
