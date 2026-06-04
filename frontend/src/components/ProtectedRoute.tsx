@@ -3,13 +3,14 @@
 import { ReactNode } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import LoginPage from './LoginPage';
+import OnboardingPage from './OnboardingPage';
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, showOnboarding } = useAuth();
 
   if (isLoading) {
     return (
@@ -24,6 +25,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <LoginPage />;
+  }
+
+  if (showOnboarding) {
+    return <OnboardingPage />;
   }
 
   return <>{children}</>;
