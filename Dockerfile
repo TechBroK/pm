@@ -1,6 +1,15 @@
 # Stage 1: Build the Next.js frontend
 FROM node:20-slim AS frontend-build
 
+WORKDIR /app/frontend
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: Python backend + built frontend
 WORKDIR /app
 
 # Install dependencies first for better layer caching
@@ -24,6 +33,7 @@ ENV ENVIRONMENT=production \
 # Copy backend
 COPY backend/ ./backend/
 
+# Copy built frontend from stage 1
 # Copy prebuilt frontend assets from stage 1
 COPY --from=frontend-build /app/frontend/dist/ ./frontend/dist/
 
