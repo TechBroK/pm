@@ -21,10 +21,10 @@ ENV ENVIRONMENT=production \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Copy backend code
+# Copy backend
 COPY backend/ ./backend/
 
-# Copy pre-built frontend assets from stage 1
+# Copy prebuilt frontend assets from stage 1
 COPY --from=frontend-build /app/frontend/dist/ ./frontend/dist/
 
 # Install python dependencies
