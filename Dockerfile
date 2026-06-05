@@ -1,3 +1,15 @@
+# Stage 1: Build the Next.js frontend
+FROM node:20-slim AS frontend-build
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN npm ci --prefix frontend
+
+COPY frontend/ ./frontend/
+RUN npm run build --prefix frontend
+
+# Stage 2: Python backend runtime
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -7,9 +19,11 @@ ENV ENVIRONMENT=production \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Copy backend and prebuilt frontend dist
+# Copy backend
 COPY backend/ ./backend/
-COPY frontend/dist/ ./frontend/dist/
+
+# Copy prebuilt frontend assets from stage 1
+COPY --from=frontend-build /app/frontend/dist/ ./frontend/dist/
 
 # Install python dependencies
 RUN python -m pip install --no-cache-dir -r backend/requirements.txt
