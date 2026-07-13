@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { apiLogin, apiLogout, apiSignup } from './api';
 
 export interface AuthState {
@@ -21,33 +21,22 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Store session in localStorage
-const SESSION_KEY = 'pm_session';
-const USERNAME_KEY = 'pm_username';
-const ONBOARDING_KEY = 'pm_show_onboarding';
-
-function saveSession(sessionId: string, username: string, showOnboarding = false) {
-  localStorage.setItem(SESSION_KEY, sessionId);
-  localStorage.setItem(USERNAME_KEY, username);
-  localStorage.setItem(ONBOARDING_KEY, showOnboarding ? 'true' : 'false');
+function onboardingKey(username: string) {
+  return `pm_onboarding_complete_${username}`;
 }
 
-function loadSession(): AuthState {
-  const sessionId = localStorage.getItem(SESSION_KEY);
-  const username = localStorage.getItem(USERNAME_KEY);
-  const showOnboarding = localStorage.getItem(ONBOARDING_KEY) === 'true';
-  
-  if (sessionId && username) {
-    return { isAuthenticated: true, username, sessionId, showOnboarding };
+function readOnboardingComplete(username: string) {
+  try {
+    return localStorage.getItem(onboardingKey(username)) === 'true';
+  } catch {
+    return true;
   }
-  
-  return { isAuthenticated: false, username: null, sessionId: null, showOnboarding: false };
 }
 
-function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(USERNAME_KEY);
-  localStorage.removeItem(ONBOARDING_KEY);
+function writeOnboardingComplete(username: string, complete: boolean) {
+  try {
+    localStorage.setItem(onboardingKey(username), complete ? 'true' : 'false');
+  } catch {}
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,15 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionId: null,
     showOnboarding: false,
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Restore session from localStorage on mount
-  useEffect(() => {
-    const session = loadSession();
-    setAuthState(session);
-    setIsLoading(false);
-  }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setError(null);
@@ -73,12 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       const response = await apiLogin(username, password);
-      saveSession(response.session_id, response.username);
       setAuthState({
         isAuthenticated: true,
         username: response.username,
         sessionId: response.session_id,
-        showOnboarding: false,
+        showOnboarding: !readOnboardingComplete(response.username),
       });
       return true;
     } catch (err: unknown) {
@@ -97,13 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const response = await apiSignup(username, password);
-      saveSession(response.session_id, response.username, true);
       setAuthState({
         isAuthenticated: true,
         username: response.username,
         sessionId: response.session_id,
         showOnboarding: true,
       });
+      writeOnboardingComplete(response.username, false);
       return true;
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : 'Signup failed';
@@ -116,7 +97,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const completeOnboarding = () => {
-    localStorage.setItem(ONBOARDING_KEY, 'false');
+    if (authState.username) {
+      writeOnboardingComplete(authState.username, true);
+    }
     setAuthState((current) => ({ ...current, showOnboarding: false }));
   };
 
@@ -128,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      clearSession();
       setAuthState({ isAuthenticated: false, username: null, sessionId: null, showOnboarding: false });
       setError(null);
     }

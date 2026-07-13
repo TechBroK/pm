@@ -45,28 +45,28 @@ export default function AISidebar() {
       <button
         aria-label="Toggle AI sidebar"
         onClick={() => setOpen(!open)}
-        style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 60, padding: '10px 14px', borderRadius: 10, background: 'var(--secondary-purple)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: 8, boxShadow: 'var(--ai-button-shadow)' }}
+        style={{ position: 'fixed', right: 12, bottom: 12, zIndex: 60, padding: '8px 12px', borderRadius: 10, background: 'var(--secondary-purple)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: 6, boxShadow: 'var(--ai-button-shadow)' }}
       >
         <BotAvatar size={20} />
         <span style={{ fontWeight: 600 }}>Ask AI</span>
       </button>
 
       {open && (
-        <div style={{ position: 'fixed', right: 16, bottom: 72, width: 380, maxHeight: '60vh', zIndex: 60, background: 'var(--surface-strong)', border: '1px solid var(--stroke)', borderRadius: 8, boxShadow: 'var(--shadow)', padding: 12, overflow: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ position: 'fixed', right: 12, bottom: 60, width: 340, maxHeight: '58vh', zIndex: 60, background: 'var(--surface-strong)', border: '1px solid var(--stroke)', borderRadius: 8, boxShadow: 'var(--shadow)', padding: 5, overflow: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <BotAvatar size={28} />
             <h3 style={{ margin: 0 }}>Ask AI</h3>
           </div>
-          {!isAuthenticated && <div style={{ color: '#666', marginBottom: 8 }}>Sign in to enable session-aware AI features.</div>}
-          <textarea placeholder="Ask about your board..." value={question} onChange={(e) => setQuestion(e.target.value)} style={{ width: '100%', minHeight: 88, padding: 8, borderRadius: 6, border: '1px solid var(--stroke)' }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button onClick={askAI} disabled={loading || !question} style={{ flex: 1, padding: 8, background: 'var(--primary-blue)', color: 'white', border: 'none', borderRadius: 6 }}>Ask</button>
-            <button onClick={() => { setQuestion(''); setResponse(null); }} style={{ padding: 8 }}>Clear</button>
+          {!isAuthenticated && <div style={{ color: '#666', marginBottom: 6 }}>Sign in to enable session-aware AI features.</div>}
+          <textarea placeholder="Ask about your board..." value={question} onChange={(e) => setQuestion(e.target.value)} style={{ width: '100%', minHeight: 78, padding: 7, borderRadius: 6, border: '1px solid var(--stroke)' }} />
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button onClick={askAI} disabled={loading || !question} style={{ flex: 1, padding: 7, background: 'var(--primary-blue)', color: 'white', border: 'none', borderRadius: 6 }}>Ask</button>
+            <button onClick={() => { setQuestion(''); setResponse(null); }} style={{ padding: 7 }}>Clear</button>
           </div>
 
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 10 }}>
             <strong>Response</strong>
-            <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', color: 'var(--navy-dark)' }}>{loading ? 'Thinking...' : response ?? 'No response yet'}</div>
+            <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', color: 'var(--navy-dark)' }}>{loading ? 'Thinking...' : response ?? 'No response yet'}</div>
           </div>
         </div>
       )}

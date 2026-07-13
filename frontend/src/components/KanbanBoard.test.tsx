@@ -2,8 +2,17 @@ import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, beforeEach, afterEach } from "vitest";
 import { KanbanBoard } from "@/components/KanbanBoard";
-import { AuthProvider } from "@/lib/auth-context";
 import * as api from "@/lib/api";
+
+const mockLogout = vi.fn();
+
+vi.mock("@/lib/auth-context", () => ({
+  useAuth: () => ({
+    username: "testuser",
+    sessionId: "test-session-id",
+    logout: mockLogout,
+  }),
+}));
 
 // Mock API module
 vi.mock("@/lib/api", () => ({
@@ -56,16 +65,13 @@ const mockBoardData = {
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
 const renderWithAuth = (component: React.ReactElement) => {
-  // Set up localStorage with fake session
-  localStorage.setItem("pm_session", "test-session-id");
-  localStorage.setItem("pm_username", "testuser");
-  
-  return render(<AuthProvider>{component}</AuthProvider>);
+  return render(component);
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  mockLogout.mockResolvedValue(undefined);
   (api.apiGetBoard as any).mockResolvedValue(mockBoardData);
   (api.apiAddCard as any).mockResolvedValue({
     id: 999,
@@ -95,7 +101,7 @@ describe("KanbanBoard", () => {
       expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
     });
     const column = getFirstColumn();
-    const input = within(column).getByLabelText("Column title");
+    const input = within(column).getByLabelText(/edit backlog column title/i);
     await userEvent.clear(input);
     await userEvent.type(input, "New Name");
     expect(input).toHaveValue("New Name");

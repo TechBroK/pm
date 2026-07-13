@@ -22,6 +22,7 @@ import {
   apiDeleteCard,
   apiUpdateCard,
   apiRenameColumn,
+  type ApiError,
   type Column as ApiColumn,
   type Card as ApiCard,
 } from "@/lib/api";
@@ -83,6 +84,11 @@ export const KanbanBoard = () => {
 
         setBoard(boardData);
       } catch (err) {
+        if (typeof err === "object" && err !== null && "status" in err && (err as ApiError).status === 401) {
+          await logout();
+          return;
+        }
+
         const msg = err instanceof Error ? err.message : "Failed to load board";
         setError(msg);
         // console.error("Board load error:", err);
@@ -358,56 +364,56 @@ export const KanbanBoard = () => {
 
   return (
     <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute left-0 top-0 h-[420px] w-[420px] -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(32,157,215,0.25)_0%,_rgba(32,157,215,0.05)_55%,_transparent_70%)]" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-[520px] w-[520px] translate-x-1/4 translate-y-1/4 rounded-full bg-[radial-gradient(circle,_rgba(117,57,145,0.18)_0%,_rgba(117,57,145,0.05)_55%,_transparent_75%)]" />
+      <div className="pointer-events-none absolute left-0 top-0 h-105 w-105 -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,rgba(32,157,215,0.25)_0%,rgba(32,157,215,0.05)_55%,transparent_70%)]" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-130 w-130 translate-x-1/4 translate-y-1/4 rounded-full bg-[radial-gradient(circle,rgba(117,57,145,0.18)_0%,rgba(117,57,145,0.05)_55%,transparent_75%)]" />
 
-      <main className="relative mx-auto flex min-h-screen max-w-[1500px] flex-col gap-10 px-4 sm:px-6 pb-16 pt-12">
-        <header className="flex flex-col gap-6 rounded-[32px] border border-[var(--stroke)] bg-white/80 p-8 shadow-[var(--shadow)] backdrop-blur">
+      <main className="relative mx-auto flex min-h-screen max-w-375 flex-col gap-6 px-3 sm:px-4 pb-10 pt-8">
+        <header className="flex flex-col gap-4 rounded-4xl border border-(--stroke) bg-white/80 p-5 shadow-(--shadow) backdrop-blur sm:p-6">
           <div className="flex flex-wrap md:flex-nowrap items-start justify-between gap-6">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--gray-text)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-(--gray-text)">
                 Single Board Kanban
               </p>
-              <h1 className="mt-3 font-display text-4xl font-semibold text-[var(--navy-dark)]">
+              <h1 className="mt-2 font-display text-3xl font-semibold text-foreground sm:text-4xl">
                 Kanban Studio
               </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--gray-text)]">
+              <p className="mt-2 max-w-xl text-sm leading-6 text-(--gray-text)">
                 Keep momentum visible. Rename columns, drag cards between stages,
                 and capture quick notes without getting buried in settings.
               </p>
             </div>
-            <div className="flex flex-col gap-4">
-              <div className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--gray-text)]">
+            <div className="flex flex-col gap-3">
+              <div className="rounded-2xl border border-(--stroke) bg-background px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-(--gray-text)">
                   Focus
                 </p>
-                <p className="mt-2 text-lg font-semibold text-[var(--primary-blue)]">
+                <p className="mt-1.5 text-base font-semibold text-(--primary-blue) sm:text-lg">
                   One board. Five columns. Zero clutter.
                 </p>
               </div>
-              <div className="flex items-center justify-between rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-3">
+              <div className="flex items-center justify-between rounded-2xl border border-(--stroke) bg-background px-4 py-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--gray-text)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-(--gray-text)">
                     Signed in as
                   </p>
-                  <p className="mt-1 font-medium text-[var(--navy-dark)]">{username}</p>
+                  <p className="mt-1 font-medium text-foreground">{username}</p>
                 </div>
                 <button
                   onClick={logout}
-                  className="ml-4 rounded-lg bg-[#753991] px-4 py-2 text-sm font-medium text-white hover:bg-[#5a2a6d] transition-colors"
+                  className="ml-3 rounded-lg bg-[#753991] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#5a2a6d] transition-colors"
                 >
                   Sign Out
                 </button>
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2.5">
             {board.columns.map((column) => (
               <div
                 key={column.id}
-                className="flex items-center gap-2 rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--navy-dark)]"
+                className="flex items-center gap-2 rounded-full border border-(--stroke) px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-foreground"
               >
-                <span className="h-2 w-2 rounded-full bg-[var(--accent-yellow)]" />
+                <span className="h-2 w-2 rounded-full bg-(--accent-yellow)" />
                 {column.title}
               </div>
             ))}
@@ -420,7 +426,7 @@ export const KanbanBoard = () => {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 auto-rows-min">
+          <section className="grid grid-cols-1 auto-rows-min gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
             {board.columns.map((column) => (
               <KanbanColumn
                 key={column.id}
@@ -435,7 +441,7 @@ export const KanbanBoard = () => {
           </section>
           <DragOverlay>
             {activeCard ? (
-              <div className="w-[220px] sm:w-[260px] md:w-[300px]">
+              <div className="w-55 sm:w-65 md:w-75">
                 <KanbanCardPreview card={activeCard} />
               </div>
             ) : null}

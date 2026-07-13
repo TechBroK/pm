@@ -3,11 +3,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 
-export default function LoginPage() {
+interface LoginPageProps {
+  initialMode?: 'login' | 'signup';
+}
+
+export default function LoginPage({ initialMode = 'login' }: LoginPageProps) {
   const { login, signup } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
+  const [username, setUsername] = useState(initialMode === 'login' ? 'user' : '');
+  const [password, setPassword] = useState(initialMode === 'login' ? 'password' : '');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -16,6 +20,15 @@ export default function LoginPage() {
   useEffect(() => {
     usernameInputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (mode === 'login' && !username) {
+      setUsername('user');
+    }
+    if (mode === 'login' && !password) {
+      setPassword('password');
+    }
+  }, [mode, username, password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,30 +54,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-3 sm:p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8 relative overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-6 relative overflow-hidden">
           {/* Accent bar */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#209dd7] via-[#ecad0a] to-[#753991]" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-[#209dd7] via-[#ecad0a] to-[#753991]" />
           
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-block mb-3">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#209dd7] to-[#753991] flex items-center justify-center">
+          <div className="text-center mb-5 sm:mb-6">
+            <div className="inline-block mb-2 sm:mb-3">
+              <div className="w-12 h-12 rounded-lg bg-linear-to-br from-[#209dd7] to-[#753991] flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
               </div>
             </div>
-            <h1 className="text-4xl font-bold text-[#032147] mb-2">Kanban Studio</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#032147] mb-2">Kanban Studio</h1>
             <p className="text-[#888888]">
-              {mode === 'login' ? 'Sign in to your project board' : 'Create an account to test your own board'}
+              {mode === 'login' ? 'Sign in to your project board' : 'Create a test account for your board'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-[#032147] mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-[#032147] mb-1.5 sm:mb-2">
                 Username
               </label>
               <input
@@ -76,12 +89,12 @@ export default function LoginPage() {
                 placeholder={mode === 'login' ? 'user' : 'choose a username'}
                 disabled={isLoading}
                 autoComplete="username"
-                className="w-full px-4 py-3 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3.5 py-2.5 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#032147] mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-[#032147] mb-1.5 sm:mb-2">
                 Password
               </label>
               <div className="relative">
@@ -93,7 +106,7 @@ export default function LoginPage() {
                   placeholder="password"
                   disabled={isLoading}
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  className="w-full px-4 py-3 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500 pr-10"
+                  className="w-full px-3.5 py-2.5 border-2 border-[#ccc] rounded-lg focus:outline-none focus:border-[#209dd7] focus:shadow-[0_0_0_3px_rgba(32,157,215,0.1)] transition-all disabled:bg-gray-100 disabled:text-gray-500 pr-10"
                 />
                 <button
                   type="button"
@@ -125,7 +138,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 bg-[#753991] hover:bg-[#5a2a6d] text-white font-medium rounded-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              className="w-full py-2.5 px-4 bg-[#753991] hover:bg-[#5a2a6d] text-white font-medium rounded-lg transition-all disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
             >
               {isLoading
                 ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
@@ -137,7 +150,8 @@ export default function LoginPage() {
               onClick={() => {
                 setMode(mode === 'login' ? 'signup' : 'login');
                 setError('');
-                setPassword('');
+                setUsername(mode === 'login' ? '' : 'user');
+                setPassword(mode === 'login' ? '' : 'password');
               }}
               disabled={isLoading}
               className="w-full py-2 text-sm font-medium text-[#209dd7] hover:text-[#032147] disabled:text-[#888888] transition-colors"
