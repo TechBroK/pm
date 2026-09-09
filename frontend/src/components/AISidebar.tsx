@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { API_BASE } from '@/lib/api';
 
 function BotAvatar({ size = 20 }: { size?: number }) {
   const s = size;
@@ -28,7 +29,7 @@ export default function AISidebar() {
     setResponse(null);
     try {
       const params = sessionId ? `?session_id=${sessionId}&question=${encodeURIComponent(question)}` : `?question=${encodeURIComponent(question)}`;
-      const res = await fetch(`/api/ai/ask${params}`, {
+      const res = await fetch(`${API_BASE}/ai/ask${params}`, {
         method: 'POST',
       });
       const data = await res.json();

@@ -9,17 +9,6 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Stage 2: Python backend + built frontend
-WORKDIR /app
-
-# Install dependencies first for better layer caching
-COPY frontend/package.json frontend/package-lock.json ./frontend/
-RUN cd frontend && npm ci
-
-# Copy the rest of the frontend source and build
-COPY frontend/ ./frontend/
-RUN cd frontend && npm run build
-
 # Stage 2: Python runtime with built frontend assets
 FROM python:3.13-slim
 

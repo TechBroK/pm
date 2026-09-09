@@ -46,7 +46,11 @@ export interface LoginResponse {
   username: string;
 }
 
-const API_BASE = "/api";
+// In the browser, NEXT_PUBLIC_ vars are baked in at build time.
+// Falls back to "/api" for local dev, where Next.js can still proxy if you run a dev server.
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+  : "/api";
 
 /**
  * Make API request with session handling

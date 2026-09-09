@@ -1,15 +1,49 @@
-"""Database layer for Kanban app using SQLite."""
+"""Database layer for Kanban app using PostgreSQL (Neon)."""
 
-import sqlite3
-from pathlib import Path
+import os
+import psycopg2
+import psycopg2.extras
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 
-# Database file location
-DB_DIR = Path(__file__).parent
-DB_PATH = DB_DIR / "kanban.db"
+# Database connection string (set in environment, e.g. Neon Postgres URL)
+DATABASE_URL = os.environ["DATABASE_URL"]
+
+
+def _get_raw_connection():
+    """Open a raw psycopg2 connection with dict-style row access."""
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+
+
+class _CursorWrapper:
+    """Wraps a psycopg2 cursor to provide sqlite3-style '?' placeholders and .lastrowid."""
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=()):
+        query = query.replace("?", "%s")
+        return self._cursor.execute(query, params)
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    @property
+    def lastrowid(self):
+        # Postgres equivalent of sqlite3's cursor.lastrowid: the last value
+        # produced by any SERIAL/IDENTITY sequence in this session.
+        self._cursor.execute("SELECT lastval()")
+        row = self._cursor.fetchone()
+        return list(row.values())[0] if row else None
 
 
 @dataclass
@@ -76,13 +110,13 @@ class Database:
     @staticmethod
     def init() -> None:
         """Initialize database schema if it doesn't exist."""
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        conn = _get_raw_connection()
+        cursor = _CursorWrapper(conn.cursor())
 
         # Users table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -92,7 +126,7 @@ class Database:
         # Boards table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS boards (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 title TEXT NOT NULL DEFAULT 'My Board',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -104,7 +138,7 @@ class Database:
         # Columns table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS columns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 board_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
                 position INTEGER NOT NULL,
@@ -118,7 +152,7 @@ class Database:
         # Cards table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS cards (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 column_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
                 details TEXT,
@@ -136,7 +170,7 @@ class Database:
         # Activity log table for tracking changes
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS activity_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 board_id INTEGER NOT NULL,
                 action TEXT NOT NULL,
@@ -163,8 +197,7 @@ class Database:
     @contextmanager
     def get_connection():
         """Get database connection context manager."""
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row  # Return rows as dicts
+        conn = _get_raw_connection()
         try:
             yield conn
             conn.commit()
@@ -178,7 +211,7 @@ class Database:
     def seed_data() -> None:
         """Create default demo data (for testing only)."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
 
             # Check if user already exists
             cursor.execute("SELECT id FROM users WHERE username = ?", ("user",))
@@ -253,13 +286,13 @@ class DatabaseOps:
     def create_user(username: str, password: str) -> User:
         """Create a user with one default board and fixed columns."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
             try:
                 cursor.execute(
                     "INSERT INTO users (username, password_hash) VALUES (?, ?)",
                     (username, password)
                 )
-            except sqlite3.IntegrityError:
+            except psycopg2.IntegrityError:
                 raise ValueError("Username already exists")
 
             user_id = cursor.lastrowid
@@ -296,7 +329,7 @@ class DatabaseOps:
     def get_user_by_username(username: str) -> Optional[User]:
         """Get user by username."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
             cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
             row = cursor.fetchone()
             if row:
@@ -312,7 +345,7 @@ class DatabaseOps:
     def get_board(user_id: int) -> Optional[Dict[str, Any]]:
         """Get board with all columns and cards for a user."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
 
             # Get board
             cursor.execute(
@@ -379,7 +412,7 @@ class DatabaseOps:
                 assignee: Optional[str] = None) -> Card:
         """Add new card to column."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
 
             # Get next position
             cursor.execute(
@@ -416,9 +449,8 @@ class DatabaseOps:
     def update_card(card_id: int, column_id: int, position: int) -> Card:
         """Move card to new column/position using a safe reordering algorithm."""
         import sys
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        conn = _get_raw_connection()
+        cursor = _CursorWrapper(conn.cursor())
         
         try:
             # Get current card
@@ -582,7 +614,7 @@ class DatabaseOps:
     def delete_card(card_id: int) -> bool:
         """Delete card."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
             cursor.execute("DELETE FROM cards WHERE id = ?", (card_id,))
             return cursor.rowcount > 0
 
@@ -590,7 +622,7 @@ class DatabaseOps:
     def rename_column(column_id: int, title: str) -> Column:
         """Rename column."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
 
             cursor.execute(
                 "UPDATE columns SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -615,7 +647,7 @@ class DatabaseOps:
                            assignee: str = None) -> Card:
         """Update card details (title, details, priority, due_date, assignee)."""
         with Database.get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = _CursorWrapper(conn.cursor())
             
             # Build update query dynamically
             updates = []
